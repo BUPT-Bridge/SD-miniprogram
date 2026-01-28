@@ -10,10 +10,10 @@ export default function Index () {
   })
 
   const bannerImages = [
-    { url: require('../../../assets/微信图片_20260114124948.jpg'), alt: '轮播图1' },
-    { url: require('../../../assets/微信图片_20260114124948.jpg'), alt: '轮播图2' },
-    { url: require('../../../assets/微信图片_20260114124948.jpg'), alt: '轮播图3' }
-  ]  // 示例图片数据
+    { url: 'https://img.yzcdn.cn/vant/apple-1.jpg', alt: '轮播图1' },
+    { url: 'https://img.yzcdn.cn/vant/apple-2.jpg', alt: '轮播图2' },
+    { url: 'https://img.yzcdn.cn/vant/apple-3.jpg', alt: '轮播图3' }
+  ]
 
   return (
     <View className='index'>
