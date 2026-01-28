@@ -1,6 +1,6 @@
 import { View, Text } from '@tarojs/components'
-import { Cell, Button, Image, Tag, Flex, Dialog } from '@taroify/core'
-import { User, Scan, InfoOutlined, Manager, UnderwayOutlined, LocationOutlined, ContactOutlined, Passed, Close } from '@taroify/icons'
+import { Cell, Button, Image, Tag, Flex, Dialog, ShareSheet } from '@taroify/core'
+import { User, Scan, InfoOutlined, Manager, UnderwayOutlined, LocationOutlined, ContactOutlined, Passed, Close, ShareOutlined } from '@taroify/icons'
 import { useLoad } from '@tarojs/taro'
 import Taro from '@tarojs/taro'
 import { useState } from 'react'
@@ -9,6 +9,7 @@ import { Warning } from 'postcss'
 
 export default function Profile() {
   const [open, setOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   useLoad(() => {
     console.log('Profile Page loaded.')
@@ -16,6 +17,16 @@ export default function Profile() {
 
   return (
     <View className='profile-page'>
+      <ShareSheet open={shareOpen} onClose={setShareOpen} style={{ zIndex: 10000 }}>
+        <ShareSheet.Header title="立即分享给好友" />
+        <ShareSheet.Options>
+          <ShareSheet.Option icon="wechat" name="微信" openType="share" />
+          {/* <ShareSheet.Option icon="poster" name="海报" />
+          <ShareSheet.Option icon="link" name="链接" />
+          <ShareSheet.Option icon="weapp-qrcode" name="小程序码" /> */}
+        </ShareSheet.Options>
+        <ShareSheet.Button type="cancel" onClick={() => setShareOpen(false)}>取消</ShareSheet.Button>
+      </ShareSheet>
       <Dialog open={open} onClose={setOpen}>
         <Dialog.Content>
             <View style={{ textAlign: 'center', marginBottom: '10px', fontSize: '16px', color: '#333' }}>长按识别二维码关注</View>
@@ -90,9 +101,18 @@ export default function Profile() {
           title="关于我们" 
           icon={<InfoOutlined className="icon-orange" />} 
           isLink 
-          size="large" 
+          size="large" Share
           clickable
           onClick={() => Taro.navigateTo({ url: '/pages/about/index' })} 
+        />
+        <Cell 
+          align="center" 
+          title="分享小程序"
+          icon={<ShareOutlined className="icon-orange" />} 
+          isLink 
+          size="large" 
+          clickable
+          onClick={() => setShareOpen(true)} 
         />
       </View>
 

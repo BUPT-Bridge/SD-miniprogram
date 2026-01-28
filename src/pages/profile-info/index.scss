@@ -85,7 +85,39 @@
         font-size: 30px;
     }
   }
+
+  /* 新增编辑状态样式 */
+  .editable-wrapper {
+      width: 100%;
+      
+      .edit-input {
+          text-align: right; 
+          flex: 1; 
+          margin-right: 12px;
+          color: #333;
+          font-size: 30px;
+      }
+
+      .confirm-btn {
+           background: #ffc300; 
+           border-color: #ffc300; 
+           color: #fff;
+           border-radius: 4px;
+           padding: 0 12px;
+           height: 45px;
+           font-size: 30px;
+      }
+  }
+
+  .cell-value {
+    color: #323233;
+  }
+  
+  .cell-placeholder {
+    color: #969799;
+  }
 }
+
 
 .footer-area {
     margin-top: 8vh;
