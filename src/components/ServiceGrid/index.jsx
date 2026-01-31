@@ -4,15 +4,15 @@ import "./index.scss";
 
 export default function ServiceGrid() {
   const services = [
-    { title: "政策法规", path: "/pages/PolicyRegulation/index" },
+    { title: "政策法规", path: "/PolicyRegulation/index" },
     { title: "联系社区", path: "/ContactCommunity/Contact/index" },
-    { title: "卫生服务", path: "/pages/HealthService/index" },
-    { title: "资源清单", path: "/pages/ResourceList/index" },
-    { title: "服务地图", path: "/pages/ServiceMap/index" },
-    { title: "意见反馈", path: "/pages/Feedback/index" },
-    { title: "健康指导", path: "/pages/HealthGuidance/index" },
-    { title: "养老用餐", path: "/pages/ElderlyCareMeal/index" },
-    { title: "更多服务", path: "/pages/MoreServices/index" },
+    { title: "卫生服务", path: "/HealthService/index" },
+    { title: "资源清单", path: "/ResourceList/index" },
+    { title: "服务地图", path: "/ServiceMap/index" },
+    { title: "意见反馈", path: "/Feedback/index" },
+    { title: "健康指导", path: "/HealthGuidance/index" },
+    { title: "养老用餐", path: "/ElderlyCareMeal/index" },
+    { title: "更多服务", path: "/MoreServices/index" },
   ];
 
   const handleServiceClick = (service) => {

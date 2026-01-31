@@ -1,4 +1,7 @@
 export default {
+  env: {
+    TARO_APP_API: JSON.stringify("https://prod.api.com"),
+  },
   mini: {},
   h5: {
     /**

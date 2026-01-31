@@ -18,7 +18,12 @@ export default defineConfig(async (merge, {}) => {
     sourceRoot: "src",
     outputRoot: "dist",
     plugins: ["@tarojs/plugin-generator"],
-    defineConstants: {},
+    defineConstants: {
+      "process.env.TARO_APP_API":
+        process.env.NODE_ENV === "development"
+          ? JSON.stringify("http://127.0.0.1:7001")
+          : JSON.stringify("https://prod.api.com"),
+    },
     copy: {
       patterns: [],
       options: {},
