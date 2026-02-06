@@ -21,7 +21,7 @@ export default defineConfig(async (merge, {}) => {
     defineConstants: {
       "process.env.TARO_APP_API":
         process.env.NODE_ENV === "development"
-          ? JSON.stringify("http://127.0.0.1:7001")
+          ? JSON.stringify("http://123.56.99.128:3001")
           : JSON.stringify("https://prod.api.com"),
     },
     copy: {

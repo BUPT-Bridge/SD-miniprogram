@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package feedback_api;
+
+// Feedback 核心数据结构
+message Feedback {
+  int32 id = 1;
+  string type = 2;
+  string content = 3;
+  optional string phone = 4;
+  int64 created_time = 5;
+}
+
+// 提交反馈的请求体
+message FeedbackRequest {
+  string type = 1;
+  string content = 2;
+  optional string phone = 3;
+}
+
+// 提交反馈的响应体
+message FeedbackResponse {
+  optional Feedback feedback = 1;
+  int32 code = 2;
+  string message = 3;
+}
+
+// 导出反馈的请求体
+message FeedbackExportRequest {
+  int64 start_time = 1;
+  int64 end_time = 2;
+}
+
+// 导出反馈的响应体
+// 注意：实际的响应是文件流，这里定义一个空的 message
+// 或者可以包含下载链接、任务ID等信息。
+message FeedbackExportResponse {
+  // 可以留空，因为响应是文件流
+}
+
+// 定义反馈相关的服务
+service FeedbackService {
+  // 提交一条新的反馈
+  rpc SubmitFeedback(FeedbackRequest) returns (FeedbackResponse);
+
+  // 导出反馈（注意：响应是文件流，gRPC/Protobuf 的标准处理方式可能需要特殊实现）
+  rpc ExportFeedback(FeedbackExportRequest) returns (FeedbackExportResponse);
+}

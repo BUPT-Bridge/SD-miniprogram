@@ -33,7 +33,7 @@
     "@tarojs/runtime": "4.1.9",
     "@tarojs/shared": "4.1.9",
     "@tarojs/taro": "4.1.9",
-    "protobufjs": "^8.0.0",
+    "protobufjs": "^6.11.3",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },

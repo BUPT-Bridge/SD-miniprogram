@@ -4,7 +4,7 @@ export default {
     stats: true,
   },
   env: {
-    TARO_APP_API: JSON.stringify("http://127.0.0.1:7001"),
+    TARO_APP_API: JSON.stringify("http://123.56.99.128:3001"),
   },
   mini: {},
   h5: {},
