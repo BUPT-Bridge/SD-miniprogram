@@ -34,6 +34,7 @@ const request = (options) => {
         "Content-Type": "application/json",
         // 优先使用内存中的 Token，其次读取本地存储
         Authorization: globalToken || Taro.getStorageSync("token") || "",
+        ...options.header,
       },
       ...rest,
       success: (res) => {

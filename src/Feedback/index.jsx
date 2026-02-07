@@ -30,34 +30,47 @@ export default function Feedback() {
   };
 
   const handleSubmit = async () => {
-    if (!content) {
-      Taro.showToast({
-        title: "反馈内容不能为空",
-        icon: "none",
+    const token = Taro.getStorageSync("token");
+    if (!token) {
+      Taro.showModal({
+        title: "提示",
+        content: "您尚未登录，请先登录再提交反馈",
+        confirmText: "前往登录",
+        showCancel: false,
+        success: (res) => {
+          if (res.confirm) {
+            Taro.switchTab({
+              url: "/PersonalDetails/profile/index",
+            });
+          }
+        },
       });
-      return;
-    }
+    } else {
+      if (!content) {
+        Taro.showToast({
+          title: "反馈内容不能为空",
+          icon: "none",
+        });
+        return;
+      }
 
-    try {
-      await submitFeedback({
-        type: feedbackType,
-        content,
-        contact,
-      });
+      try {
+        await submitFeedback({
+          type: feedbackType,
+          content,
+          contact,
+        });
 
-      Taro.showToast({
-        title: "提交成功",
-        icon: "success",
-      });
-
-      setTimeout(() => {
-        Taro.navigateBack();
-      }, 1500);
-    } catch (error) {
-      Taro.showToast({
-        title: "提交失败，请稍后重试",
-        icon: "none",
-      });
+        Taro.showToast({
+          title: "提交成功",
+          icon: "success",
+        });
+      } catch (error) {
+        Taro.showToast({
+          title: "提交失败，请稍后重试",
+          icon: "none",
+        });
+      }
     }
   };
 
@@ -70,8 +83,7 @@ export default function Feedback() {
       <View className="custom-header">
         <View className="nav-bar">
           <View className="back-btn" onClick={goBack}>
-            <Text className="at-icon at-icon-chevron-left"></Text>
-            <Text>返回</Text>
+            <Text>&lt; 返回</Text>
           </View>
         </View>
         <View className="header-content">
