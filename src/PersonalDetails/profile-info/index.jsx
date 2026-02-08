@@ -1,4 +1,4 @@
-import { View, Input } from "@tarojs/components";
+import { View, Input, Button as NativeButton } from "@tarojs/components";
 import { Cell, Button, Flex, Dialog } from "@taroify/core";
 import { Edit } from "@taroify/icons";
 import Taro from "@tarojs/taro";
@@ -99,54 +99,42 @@ export default function ProfileInfo() {
     }
   };
 
-  const handleAvatarClick = () => {
-    Taro.chooseImage({
-      count: 1,
-      sizeType: ["original", "compressed"],
-      sourceType: ["album", "camera"],
-      success: async (res) => {
-        const tempFilePath = res.tempFilePaths[0];
+  const onChooseAvatar = async (e) => {
+    const { avatarUrl } = e.detail;
+    if (!avatarUrl) {
+      return;
+    }
 
-        Taro.showLoading({ title: "上传头像中..." });
+    Taro.showLoading({ title: "上传头像中..." });
 
-        try {
-          // 1. 压缩图片
-          const compressedRes = await Taro.compressImage({
-            src: tempFilePath,
-            quality: 80, // 默认80，可调整
-          });
-          const compressedPath = compressedRes.tempFilePath;
+    try {
+      // 1. 压缩图片
+      const compressedRes = await Taro.compressImage({
+        src: avatarUrl,
+        quality: 80, // 默认80，可调整
+      });
+      const compressedPath = compressedRes.tempFilePath;
 
-          // 2. 上传文件获取 UUID
-          // 根据需求：avatar=true (使用 MediaType.AVATAR = 2)
-          const media = await uploadMedia(compressedPath, MediaType.AVATAR);
-          const uuid = media.uuid;
-          console.log("Avatar Uploaded, UUID:", uuid);
+      // 2. 上传文件获取 UUID
+      // 根据需求：avatar=true (使用 MediaType.AVATAR = 2)
+      const media = await uploadMedia(compressedPath, MediaType.AVATAR);
+      const uuid = media.uuid;
+      console.log("Avatar Uploaded, UUID:", uuid);
 
-          // 3. 提交 UUID 到用户信息接口
-          // 注意：这里我们使用最新的本地 userInfo 状态，将 avatar 字段替换为 UUID 发送
-          const updatedInfo = { ...userInfo, avatar: uuid };
-          await updateUserInfo(updatedInfo);
+      // 3. 提交 UUID 到用户信息接口
+      // 注意：这里我们使用最新的本地 userInfo 状态，将 avatar 字段替换为 UUID 发送
+      const updatedInfo = { ...userInfo, avatar: uuid };
+      await updateUserInfo(updatedInfo);
 
-          Taro.showToast({ title: "头像更新成功", icon: "success" });
-        } catch (error) {
-          console.error("Avatar process/upload failed:", error);
-          if (error?.code !== 401 && error?.statusCode !== 401) {
-            Taro.showToast({ title: "头像上传失败", icon: "none" });
-          }
-        } finally {
-          Taro.hideLoading();
-        }
-      },
-      fail: (err) => {
-        // 处理取消/失败
-        if (err.errMsg.includes("cancel")) {
-          console.log("用户取消了选择"); // 不用提示，静默处理
-        } else {
-          Taro.showToast({ title: "选择图片失败", icon: "none" });
-        }
-      },
-    });
+      Taro.showToast({ title: "头像更新成功", icon: "success" });
+    } catch (error) {
+      console.error("Avatar process/upload failed:", error);
+      if (error?.code !== 401 && error?.statusCode !== 401) {
+        Taro.showToast({ title: "头像上传失败", icon: "none" });
+      }
+    } finally {
+      Taro.hideLoading();
+    }
   };
 
   const renderEditableCell = (title, field, placeholder = "未设置") => {
@@ -224,7 +212,11 @@ export default function ProfileInfo() {
       {/* 顶部区域 */}
       <View className="header-section">
         <Flex direction="column" align="center" className="user-display">
-          <View className="avatar-wrapper" onClick={handleAvatarClick}>
+          <NativeButton
+            className="avatar-wrapper"
+            openType="chooseAvatar"
+            onChooseAvatar={onChooseAvatar}
+          >
             <AuthAvatar
               uuid={userInfo.avatar}
               className="avatar"
@@ -234,7 +226,7 @@ export default function ProfileInfo() {
             <View className="edit-icon">
               <Edit size={20} color="#fff" />
             </View>
-          </View>
+          </NativeButton>
           <View className="username-pill">{userInfo.nickname || "用户"}</View>
         </Flex>
       </View>
