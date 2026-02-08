@@ -23,7 +23,7 @@ export const checkAuth = (res) => {
 };
 
 const request = (options) => {
-  const { url, method = "GET", data = {}, ...rest } = options;
+  const { url, method = "GET", data = {}, header = {}, ...rest } = options;
 
   return new Promise((resolve, reject) => {
     Taro.request({
@@ -34,6 +34,7 @@ const request = (options) => {
         "Content-Type": "application/json",
         // 优先使用内存中的 Token，其次读取本地存储
         Authorization: globalToken || Taro.getStorageSync("token") || "",
+        ...header,
       },
       ...rest,
       success: (res) => {
