@@ -1,6 +1,6 @@
 export default {
   env: {
-    TARO_APP_API: JSON.stringify("https://123.56.99.128:3001"),
+    TARO_APP_API: JSON.stringify("https://123.56.99.128:8000"),
   },
   mini: {},
   h5: {
