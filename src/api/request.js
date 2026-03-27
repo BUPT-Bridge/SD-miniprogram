@@ -1,6 +1,6 @@
 import Taro from "@tarojs/taro";
 
-const BASE_URL = process.env.TARO_APP_API;
+const BASE_URL = (process.env.TARO_APP_API || "").replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "auth_token";
 
 const isEmptyValue = (value) =>
@@ -61,10 +61,12 @@ const request = (options) => {
     method = "GET",
     data = {},
     headers = {},
+    header = {},
     withAuth = true,
     responseType,
     transformRequest,
     transformResponse,
+    ...rest
   } = options;
 
   const token = getAuthToken();
@@ -72,7 +74,6 @@ const request = (options) => {
 
   const requestData =
     typeof transformRequest === "function" ? transformRequest(data) : data;
-  const { url, method = "GET", data = {}, header = {}, ...rest } = options;
 
   return new Promise((resolve, reject) => {
     Taro.request({
@@ -96,7 +97,6 @@ const request = (options) => {
               ? transformResponse(res.data)
               : res.data;
           resolve(result);
-          resolve(res.data);
         } else if (res.statusCode === 401) {
           // Token 过期或无效
           reject({ ...res, message: "Token expired" });
