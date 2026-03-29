@@ -1,4 +1,4 @@
-import request from "./request";
+import request, { withQuery } from "./request";
 import proto from "./proto/feedback.js";
 
 export const submitFeedback = async (data) => {
@@ -30,4 +30,11 @@ export const submitFeedback = async (data) => {
     new Uint8Array(response.data),
   );
   return FeedbackResponse.toObject(responseMessage);
+};
+
+export const exportFeedback = ({ start_time, end_time }) => {
+  return request({
+    url: withQuery("/api/feedback/export", { start_time, end_time }),
+    method: "GET",
+  });
 };

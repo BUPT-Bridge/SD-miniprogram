@@ -1,4 +1,4 @@
-import request from "./request";
+import request, { withQuery } from "./request";
 
 /**
  * 获取养老服务资源地图类型列表
@@ -47,6 +47,7 @@ export const addServiceMapType = (data) => {
  */
 export const updateServiceMapType = (id, data) => {
   return request({
+    url: withQuery("/api/service_map_type", { id }),
     url: `/api/service_map_type?id=${id}`,
     method: "PUT",
     data,
@@ -62,6 +63,7 @@ export const updateServiceMapType = (id, data) => {
  */
 export const deleteServiceMapType = (id) => {
   return request({
+    url: withQuery("/api/service_map_type", { id }),
     url: `/api/service_map_type?id=${id}`,
     method: "DELETE",
   });
@@ -88,6 +90,10 @@ export const deleteServiceMapType = (id) => {
  */
 export const getServiceMapContents = (typeOne, typeTwo) => {
   return request({
+    url: withQuery("/api/service_map_content", {
+      type_one: typeOne,
+      type_two: typeTwo,
+    }),
     url: `/api/service_map_content?type_one=${typeOne}&type_two=${encodeURIComponent(typeTwo)}`,
     method: "GET",
   });
@@ -123,6 +129,10 @@ export const addServiceMapContent = (data) => {
  */
 export const updateServiceMapContent = (typeOne, typeTwo, data) => {
   return request({
+    url: withQuery("/api/service_map_content", {
+      type_one: typeOne,
+      type_two: typeTwo,
+    }),
     url: `/api/service_map_content?type_one=${typeOne}&type_two=${encodeURIComponent(typeTwo)}`,
     method: "PUT",
     data,
@@ -139,6 +149,10 @@ export const updateServiceMapContent = (typeOne, typeTwo, data) => {
  */
 export const deleteServiceMapContent = (typeOne, typeTwo) => {
   return request({
+    url: withQuery("/api/service_map_content", {
+      type_one: typeOne,
+      type_two: typeTwo,
+    }),
     url: `/api/service_map_content?type_one=${typeOne}&type_two=${encodeURIComponent(typeTwo)}`,
     method: "DELETE",
   });

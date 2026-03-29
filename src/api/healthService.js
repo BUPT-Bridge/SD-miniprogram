@@ -1,4 +1,36 @@
-import request from "./request";
+import request, { withQuery } from "./request";
+
+const buildServiceApi = (serviceName) => `/api/${serviceName}_service`;
+
+const getServiceList = (serviceName) => {
+  return request({
+    url: buildServiceApi(serviceName),
+    method: "GET",
+  });
+};
+
+const addService = (serviceName, data) => {
+  return request({
+    url: buildServiceApi(serviceName),
+    method: "POST",
+    data,
+  });
+};
+
+const updateService = (serviceName, id, data) => {
+  return request({
+    url: withQuery(buildServiceApi(serviceName), { id }),
+    method: "PUT",
+    data,
+  });
+};
+
+const deleteService = (serviceName, id) => {
+  return request({
+    url: withQuery(buildServiceApi(serviceName), { id }),
+    method: "DELETE",
+  });
+};
 
 /**
  * 获取卫生服务站列表
@@ -20,10 +52,7 @@ import request from "./request";
  * }>}
  */
 export const getMedicalServices = () => {
-  return request({
-    url: "/api/medical_service",
-    method: "GET",
-  });
+  return getServiceList("medical");
 };
 
 /**
@@ -34,11 +63,7 @@ export const getMedicalServices = () => {
  * @returns {Promise<{ medical_services: Array, code: number, message: string }>}
  */
 export const addMedicalService = (data) => {
-  return request({
-    url: "/api/medical_service",
-    method: "POST",
-    data,
-  });
+  return addService("medical", data);
 };
 
 /**
@@ -50,11 +75,7 @@ export const addMedicalService = (data) => {
  * @returns {Promise<{ medical_services: Array, code: number, message: string }>}
  */
 export const updateMedicalService = (id, data) => {
-  return request({
-    url: `/api/medical_service?id=${id}`,
-    method: "PUT",
-    data,
-  });
+  return updateService("medical", id, data);
 };
 
 /**
@@ -65,8 +86,23 @@ export const updateMedicalService = (id, data) => {
  * @returns {Promise<{ code: number, message: string }>}
  */
 export const deleteMedicalService = (id) => {
-  return request({
-    url: `/api/medical_service?id=${id}`,
-    method: "DELETE",
-  });
+  return deleteService("medical", id);
 };
+
+export const getCommunityServices = () => getServiceList("community");
+
+export const addCommunityService = (data) => addService("community", data);
+
+export const updateCommunityService = (id, data) =>
+  updateService("community", id, data);
+
+export const deleteCommunityService = (id) => deleteService("community", id);
+
+export const getResourceServices = () => getServiceList("resource");
+
+export const addResourceService = (data) => addService("resource", data);
+
+export const updateResourceService = (id, data) =>
+  updateService("resource", id, data);
+
+export const deleteResourceService = (id) => deleteService("resource", id);

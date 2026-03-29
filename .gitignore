@@ -10,3 +10,5 @@ node_modules/
 assets/
 *.png
 project.private.config.json
+.env.development
+后端接口文档.md
