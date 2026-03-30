@@ -1,5 +1,4 @@
 import request, { withQuery } from "./request";
-import request from "./request";
 import proto from "./proto/feedback.js";
 
 export const submitFeedback = async (data) => {

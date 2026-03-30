@@ -6,49 +6,21 @@ import { ArrowLeft, Phone, LocationOutlined, Clock } from "@taroify/icons";
 import { getMedicalServices } from "../api/healthService";
 import "./index.scss";
 
-// 默认模拟数据，API 未就绪时作为兜底
-const DEFAULT_STATIONS = [
-  {
-    id: 1,
-    name: "上地街道社区卫生服务中心",
-    address: "北京市海淀区上地东路5号",
-    phone: "010-82886688",
-    latitude: 40.0355,
-    longitude: 116.3184,
-    service_time: "周一至周五 08:00-17:00",
-  },
-  {
-    id: 2,
-    name: "清河社区卫生服务站",
-    address: "北京市海淀区清河中街68号",
-    phone: "010-62987766",
-    latitude: 40.0392,
-    longitude: 116.3346,
-    service_time: "周一至周六 08:30-17:30",
-  },
-  {
-    id: 3,
-    name: "西三旗社区卫生服务站",
-    address: "北京市海淀区西三旗建材西路2号",
-    phone: "010-82900123",
-    latitude: 40.0488,
-    longitude: 116.3535,
-    service_time: "周一至周五 08:00-18:00",
-  },
-];
-
 export default function HealthService() {
-  const [stations, setStations] = useState(DEFAULT_STATIONS);
+  const [stations, setStations] = useState([]);
 
   useEffect(() => {
     getMedicalServices()
       .then((res) => {
-        if (res?.medical_services?.length > 0) {
-          setStations(res.medical_services);
-        }
+        const list = Array.isArray(res?.medical_services)
+          ? res.medical_services
+          : Array.isArray(res?.medicalServices)
+            ? res.medicalServices
+            : [];
+        setStations(list);
       })
       .catch(() => {
-        // API 未就绪，使用默认数据
+        setStations([]);
       });
   }, []);
 

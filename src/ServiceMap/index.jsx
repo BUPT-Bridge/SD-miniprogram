@@ -6,50 +6,6 @@ import { ArrowLeft, Arrow, LocationOutlined } from "@taroify/icons";
 import { getServiceMapTypes } from "../api/serviceMap";
 import "./index.scss";
 
-// 默认兜底数据
-const DEFAULT_DATA = [
-  {
-    id: 1,
-    community_name: "上地街道",
-    type_sum: 2,
-    type_name: JSON.stringify({
-      餐饮服务: {
-        助餐点: ["阳光餐厅", "幸福食堂"],
-        配送范围: "上地东路、上地西路",
-      },
-      医疗服务: {
-        社区卫生站: ["上地卫生服务中心"],
-        服务内容: ["健康监测", "慢病管理", "用药指导"],
-      },
-    }),
-    latitude: 40.0355,
-    longitude: 116.3184,
-    address: "北京市海淀区上地东路5号",
-  },
-  {
-    id: 2,
-    community_name: "清河社区",
-    type_sum: 3,
-    type_name: JSON.stringify({
-      文化娱乐: {
-        活动中心: ["清河老年活动室"],
-        活动项目: ["书法", "太极拳", "合唱团"],
-      },
-      日间照料: {
-        照料站: ["清河日间照料中心"],
-        服务项目: ["生活照料", "康复训练"],
-      },
-      家政服务: {
-        服务商: ["安心家政", "乐居家政"],
-        服务项目: ["保洁", "陪护", "代购"],
-      },
-    }),
-    latitude: 40.0392,
-    longitude: 116.3346,
-    address: "北京市海淀区清河中街68号",
-  },
-];
-
 /**
  * 递归渲染 JSON 层级结构
  * @param {any} data - 要渲染的数据（对象 / 数组 / 基本值）
@@ -124,23 +80,21 @@ function renderTree(data, depth = 0) {
 }
 
 export default function ServiceMap() {
-  const [mapTypes, setMapTypes] = useState(DEFAULT_DATA);
-  const [expandedIds, setExpandedIds] = useState(DEFAULT_DATA.map((t) => t.id));
+  const [mapTypes, setMapTypes] = useState([]);
+  const [expandedIds, setExpandedIds] = useState([]);
 
   useEffect(() => {
     getServiceMapTypes()
       .then((res) => {
-        if (res?.service_map_types?.length > 0) {
-          // 按 id 排序
-          const sorted = [...res.service_map_types].sort((a, b) => a.id - b.id);
-          setMapTypes(sorted);
-          // 默认展开全部一级
-          setExpandedIds(sorted.map((t) => t.id));
-        }
+        const list = Array.isArray(res?.service_map_types)
+          ? [...res.service_map_types].sort((a, b) => a.id - b.id)
+          : [];
+        setMapTypes(list);
+        setExpandedIds(list.map((t) => t.id));
       })
       .catch(() => {
-        // API 未就绪，使用默认数据
-        setExpandedIds(DEFAULT_DATA.map((t) => t.id));
+        setMapTypes([]);
+        setExpandedIds([]);
       });
   }, []);
 
