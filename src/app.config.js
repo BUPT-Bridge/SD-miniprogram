@@ -7,6 +7,7 @@ export default defineAppConfig({
     "PersonalDetails/about/index",
     "ContactCommunity/Contact/index",
     "PolicyRegulation/index",
+    "PolicyRegulation/preview/index",
     "HealthService/index",
     "ResourceList/index",
     "ServiceMap/index",

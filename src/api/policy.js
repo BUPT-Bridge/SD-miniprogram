@@ -93,7 +93,20 @@ export const getPolicyFileIndexList = async (type) => {
 };
 
 //uuid拼接函数
-export const getPolicyPdfBufferByUuid = async (uuid) => {
+const createAbortError = () => {
+  const error = new Error("请求已取消");
+  error.name = "AbortError";
+  return error;
+};
+
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
+};
+
+export const getPolicyPdfBufferByUuid = async (uuid, options = {}) => {
+  const { signal } = options;
   const token = Taro.getStorageSync("token") || "";
   const encoded = encodeURIComponent(uuid || "");
   const candidateUrls = [
@@ -133,13 +146,117 @@ export const getPolicyPdfBufferByUuid = async (uuid) => {
     return false;
   };
 
-  const tryDownload = async (url) => {
-    const downloadRes = await Taro.downloadFile({
-      url,
-      header: {
-        Authorization: token,
-      },
+  const containsPdfEof = (arrayBuffer) => {
+    if (!arrayBuffer) {
+      return false;
+    }
+    const bytes = new Uint8Array(arrayBuffer);
+    if (bytes.length < 5) {
+      return false;
+    }
+    const start = Math.max(0, bytes.length - 2048);
+    for (let i = bytes.length - 5; i >= start; i -= 1) {
+      if (
+        bytes[i] === 0x25 &&
+        bytes[i + 1] === 0x25 &&
+        bytes[i + 2] === 0x45 &&
+        bytes[i + 3] === 0x4f &&
+        bytes[i + 4] === 0x46
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const isValidPdfBuffer = (arrayBuffer) => {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      return false;
+    }
+    if (!containsPdfMagic(arrayBuffer)) {
+      return false;
+    }
+    return containsPdfEof(arrayBuffer);
+  };
+
+  const tryRequestBinary = async (url) => {
+    throwIfAborted(signal);
+    const requestRes = await new Promise((resolve, reject) => {
+      const onAbort = () => {
+        if (task && typeof task.abort === "function") {
+          task.abort();
+        }
+        reject(createAbortError());
+      };
+      let task = null;
+      if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+      task = Taro.request({
+        url,
+        method: "GET",
+        responseType: "arraybuffer",
+        header: {
+          Authorization: token,
+        },
+        success: (res) => {
+          if (signal) {
+            signal.removeEventListener("abort", onAbort);
+          }
+          resolve(res);
+        },
+        fail: (error) => {
+          if (signal) {
+            signal.removeEventListener("abort", onAbort);
+          }
+          reject(error);
+        },
+      });
     });
+    throwIfAborted(signal);
+    if (requestRes.statusCode !== 200) {
+      return null;
+    }
+    const arrayBuffer = normalizeArrayBuffer(requestRes.data);
+    if (!isValidPdfBuffer(arrayBuffer)) {
+      return null;
+    }
+    return arrayBuffer;
+  };
+
+  const tryDownload = async (url) => {
+    throwIfAborted(signal);
+    const downloadRes = await new Promise((resolve, reject) => {
+      const onAbort = () => {
+        if (task && typeof task.abort === "function") {
+          task.abort();
+        }
+        reject(createAbortError());
+      };
+      let task = null;
+      if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+      task = Taro.downloadFile({
+        url,
+        header: {
+          Authorization: token,
+        },
+        success: (res) => {
+          if (signal) {
+            signal.removeEventListener("abort", onAbort);
+          }
+          resolve(res);
+        },
+        fail: (error) => {
+          if (signal) {
+            signal.removeEventListener("abort", onAbort);
+          }
+          reject(error);
+        },
+      });
+    });
+    throwIfAborted(signal);
     if (downloadRes.statusCode !== 200) {
       return null;
     }
@@ -153,54 +270,39 @@ export const getPolicyPdfBufferByUuid = async (uuid) => {
     if (!fileInfo?.size) {
       return null;
     }
+    throwIfAborted(signal);
     const fileData = await new Promise((resolve, reject) => {
       fs.readFile({
         filePath: downloadRes.tempFilePath,
-        encoding: "base64",
+        encoding: "",
         success: (res) => resolve(res.data),
         fail: (error) => reject(error),
       });
     });
-    const arrayBuffer =
-      typeof fileData === "string"
-        ? Taro.base64ToArrayBuffer(fileData)
-        : normalizeArrayBuffer(fileData);
-    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-      return null;
-    }
-    if (!containsPdfMagic(arrayBuffer)) {
+    throwIfAborted(signal);
+    const arrayBuffer = normalizeArrayBuffer(fileData);
+    if (!isValidPdfBuffer(arrayBuffer)) {
       return null;
     }
     return arrayBuffer;
   };
 
-  const debugRes = await Taro.request({
-    url: candidateUrls[0],
-    method: "GET",
-    responseType: "arraybuffer",
-    header: {
-      Authorization: token,
-    },
-  });
-  const debugBuffer = normalizeArrayBuffer(debugRes.data);
-  console.log("[policy-pdf] download debug:", {
-    url: candidateUrls[0],
-    tokenLength: token.length,
-    statusCode: debugRes.statusCode,
-    header: debugRes.header,
-    byteLength: debugBuffer ? debugBuffer.byteLength : 0,
-    firstBytes: debugBuffer
-      ? Array.from(new Uint8Array(debugBuffer).slice(0, 16))
-      : [],
-  });
-
   for (const url of candidateUrls) {
+    throwIfAborted(signal);
     try {
+      const requestBuffer = await tryRequestBinary(url);
+      if (requestBuffer) {
+        return requestBuffer;
+      }
       const buffer = await tryDownload(url);
       if (buffer) {
         return buffer;
       }
-    } catch (error) {}
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw error;
+      }
+    }
   }
 
   throw new Error("PDF 文件为空或参数名不匹配（请确认后端使用 uuid 还是 uid）");

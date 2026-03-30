@@ -91,59 +91,20 @@
       margin-bottom: 1vh;
     }
 
-    .file-index {
+    .file-time {
+      display: block;
       font-size: 28px;
       color: #666;
+      margin-bottom: 1.5vh;
     }
-  }
 
-  .policy-file-item.active {
-    border: 2px solid #2f62d9;
-    box-shadow: 0 4px 14px rgb(47 98 217 / 18%);
-  }
-}
-
-.pdf-preview-card {
-  margin: 2vh 4vw 0;
-  background: #fff;
-  border-radius: 2vw;
-  padding: 2vh 3vw;
-  box-shadow: 0 2px 12px rgb(0 0 0 / 4%);
-
-  .pdf-title {
-    display: block;
-    font-size: 32px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 1.5vh;
-  }
-
-  .pdf-status {
-    display: block;
-    color: #666;
-    font-size: 28px;
-    margin-bottom: 1.5vh;
-  }
-
-  .pdf-status.error {
-    color: #d5483f;
-  }
-
-  .pdf-page {
-    margin-bottom: 2vh;
-
-    .page-label {
-      display: block;
-      color: #555;
+    .preview-btn {
+      width: fit-content;
+      padding: 1vh 4vw;
+      border-radius: 999px;
+      background: #2f62d9;
+      color: #fff;
       font-size: 26px;
-      margin-bottom: 1vh;
     }
-  }
-
-  .pdf-canvas {
-    width: 100%;
-    background: #f3f4f6;
-    border-radius: 1vw;
-    min-height: 320px;
   }
 }
