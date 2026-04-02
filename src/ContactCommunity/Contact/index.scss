@@ -1,11 +1,11 @@
 .contact-community-page {
   min-height: 100vh;
-  background-color: #f7f8fa;
+  background-color: #fff3f8;
   padding-bottom: 5vh;
 }
 
 .custom-header {
-  background: linear-gradient(135deg, #ff8917 0%, #ff6034 100%);
+  background: linear-gradient(135deg, #ff9bc2 0%, #e464a3 100%);
   padding-bottom: 2vh;
   position: relative;
 
@@ -56,7 +56,7 @@
   background: #fff;
   border-radius: 3vw;
   margin-bottom: 2.5vh;
-  box-shadow: 0 2px 12px rgb(0 0 0 / 4%);
+  box-shadow: 0 4px 16px rgb(228 100 163 / 12%);
   overflow: hidden;
 
   .card-header {
@@ -66,14 +66,14 @@
     .icon-wrapper {
       width: 12vw;
       height: 12vw;
-      background: #ff8917;
+      background: #e464a3;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-right: 3vw;
       flex-shrink: 0;
-      box-shadow: 0 4px 8px rgb(255 137 23 / 20%);
+      box-shadow: 0 4px 10px rgb(228 100 163 / 26%);
     }
 
     .info-content {
@@ -100,7 +100,7 @@
     align-items: center;
 
     .phone-icon {
-      color: #ff8917;
+      color: #e464a3;
       margin-right: 2vw;
       font-size: 30px;
     }
@@ -111,7 +111,7 @@
     }
 
     .number {
-      color: #ff6034;
+      color: #d94f95;
       font-size: 30px;
       font-weight: 500;
       margin-left: 1vw;
@@ -130,12 +130,12 @@
       color: #fff;
 
       &.call-btn {
-        background: #ff6034;
+        background: #d94f95;
         opacity: 0.9;
       }
 
       &.nav-btn {
-        background: #ff8917;
+        background: #e464a3;
         opacity: 0.9;
       }
 

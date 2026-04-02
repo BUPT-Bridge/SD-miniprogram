@@ -37,7 +37,7 @@
   position: relative;
   z-index: 1;
   margin: 0 5vw; /* 调整顶部间距以适应新的背景高度 */
-  background: linear-gradient(180deg, rgb(255 155 194 / 85%) 0%, #e464a3 100%);
+  background: linear-gradient(180deg, rgb(250 126 2 / 82%) 0%, #fd4a03 100%);
   border-radius: 16px;
   padding: 30px 20px;
   display: flex;
@@ -109,7 +109,7 @@
 
       .status-item {
         font-size: 30px;
-        color: #d34d95;
+        color: #e46b01;
         display: flex;
         align-items: center;
         gap: 1.5vw; /* 使用 vw 替代 px */
@@ -117,7 +117,7 @@
     }
 
     .login-status-tag {
-      background: #e464a3;
+      background: #f37a01;
       color: #fff;
       font-size: 13px;
       padding: 0.8vh 5vw; /* 使用 vh/vw 替代 px */
@@ -141,7 +141,7 @@
   padding-top: 2%;
 
   .icon-orange {
-    color: #e464a3;
+    color: #f47c03;
     font-size: 150%;
   }
 
