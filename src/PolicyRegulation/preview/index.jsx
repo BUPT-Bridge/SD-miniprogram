@@ -167,12 +167,37 @@ export default function PolicyPreview() {
           return this._sync();
         }
 
+        multiply(other) {
+          const clone = new MiniDOMMatrix(this);
+          return clone.multiplySelf(other);
+        }
+
+        preMultiply(other) {
+          const clone = new MiniDOMMatrix(this);
+          return clone.preMultiplySelf(other);
+        }
+
+        translate(tx = 0, ty = 0) {
+          const clone = new MiniDOMMatrix(this);
+          return clone.translateSelf(tx, ty);
+        }
+
         translateSelf(tx = 0, ty = 0) {
           return this.multiplySelf([1, 0, 0, 1, tx, ty]);
         }
 
+        scale(scaleX = 1, scaleY = scaleX) {
+          const clone = new MiniDOMMatrix(this);
+          return clone.scaleSelf(scaleX, scaleY);
+        }
+
         scaleSelf(scaleX = 1, scaleY = scaleX) {
           return this.multiplySelf([scaleX, 0, 0, scaleY, 0, 0]);
+        }
+
+        rotate(angle = 0) {
+          const clone = new MiniDOMMatrix(this);
+          return clone.rotateSelf(angle);
         }
 
         rotateSelf(angle = 0) {

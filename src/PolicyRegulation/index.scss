@@ -64,12 +64,30 @@
     font-weight: 500;
   }
 
-  .radio-group {
+  .type-group {
     display: flex;
-    gap: 4vw;
+    gap: 3vw;
+    flex-wrap: wrap;
 
-    .radio {
+    .type-button {
       font-size: 28px;
+      padding: 1vh 3.2vw;
+      border-radius: 999px;
+      background: #f5f6f7;
+      color: #333;
+      border: 1px solid #ececec;
+      transition:
+        background 0.2s,
+        color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s;
+    }
+
+    .type-button.active {
+      background: linear-gradient(135deg, #ffb86c 0%, #f56f6f 100%);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 6px 16px rgb(245 111 111 / 22%);
     }
   }
 }
@@ -84,23 +102,42 @@
     margin-bottom: 2vh;
     box-shadow: 0 2px 12px rgb(0 0 0 / 4%);
 
+    .file-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 3vw;
+    }
+
+    .file-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1.4vw;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-title-icon {
+      font-size: 28px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
     .file-title {
       font-size: 32px;
       font-weight: 500;
       color: #333;
-      margin-bottom: 1vh;
-    }
-
-    .file-time {
-      display: block;
-      font-size: 28px;
-      color: #666;
-      margin-bottom: 1.5vh;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .preview-btn {
-      width: fit-content;
-      padding: 1vh 4vw;
+      display: inline-flex;
+      align-items: center;
+      gap: 1.5vw;
+      width: auto;
+      padding: 1vh 3.2vw;
       border-radius: 999px;
       background: linear-gradient(135deg, #ffb86c 0%, #f56f6f 100%);
       color: #fff;

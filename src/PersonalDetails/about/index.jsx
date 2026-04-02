@@ -94,7 +94,7 @@ export default function About() {
           shape="round"
           block
           style={{
-            background: "linear-gradient(to right, #86ffbd, #03ffff)",
+            background: "linear-gradient(to right, #f7940aff, #fdf514ff)",
             color: "#000000",
             border: "none",
             width: "60%",

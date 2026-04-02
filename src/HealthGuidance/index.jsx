@@ -10,15 +10,12 @@ import "./index.scss";
 
 export default function HealthGuidance() {
   const [loading, setLoading] = useState(false);
-  const [videoFiles, setVideoFiles] = useState([]);
-  const [pdfFiles, setPdfFiles] = useState([]);
-  const [videoTree, setVideoTree] = useState([]);
-  const [pdfTree, setPdfTree] = useState([]);
+  const [fileTree, setFileTree] = useState([]);
   const [errorText, setErrorText] = useState("");
 
   const hasData = useMemo(() => {
-    return videoFiles.length > 0 || pdfFiles.length > 0;
-  }, [videoFiles, pdfFiles]);
+    return fileTree.length > 0;
+  }, [fileTree]);
 
   useEffect(() => {
     const fetchHealthGuidanceData = async () => {
@@ -104,48 +101,65 @@ export default function HealthGuidance() {
         const buildFileTree = (files) => {
           const groupedMap = new Map();
           files.forEach((item) => {
-            const levelOneKey = item.typeName || "未分类";
+            const levelOneKey = `${item.typeOne}::${item.typeName || "未分类"}`;
             const levelTwoKey = item.typeTwo || "未分类";
             if (!groupedMap.has(levelOneKey)) {
-              groupedMap.set(levelOneKey, new Map());
+              groupedMap.set(levelOneKey, {
+                typeOne: item.typeOne,
+                typeName: item.typeName || "未分类",
+                childrenMap: new Map(),
+              });
             }
-            const levelTwoMap = groupedMap.get(levelOneKey);
+            const levelTwoMap = groupedMap.get(levelOneKey).childrenMap;
             if (!levelTwoMap.has(levelTwoKey)) {
               levelTwoMap.set(levelTwoKey, []);
             }
             levelTwoMap.get(levelTwoKey).push(item);
           });
-          return Array.from(groupedMap.entries()).map(
-            ([typeName, levelTwoMap]) => ({
-              typeName,
-              children: Array.from(levelTwoMap.entries()).map(
-                ([typeTwo, list]) => ({
-                  typeTwo,
-                  files: list,
-                }),
-              ),
-            }),
-          );
+          return Array.from(groupedMap.values()).map((levelOne) => ({
+            typeOne: levelOne.typeOne,
+            typeName: levelOne.typeName,
+            children: Array.from(levelOne.childrenMap.entries()).map(
+              ([typeTwo, list]) => ({
+                typeTwo,
+                files: list,
+              }),
+            ),
+          }));
         };
 
-        const nextVideoFiles = normalizedFiles.filter(
-          (item) => item.fileType === "video",
-        );
-        const nextPdfFiles = normalizedFiles.filter(
-          (item) => item.fileType === "pdf",
-        );
-        const nextVideoTree = buildFileTree(nextVideoFiles);
-        const nextPdfTree = buildFileTree(nextPdfFiles);
+        const mergedFiles = normalizedFiles
+          .filter(
+            (item) => item.fileType === "video" || item.fileType === "pdf",
+          )
+          .sort((left, right) => {
+            const typeOneCompare = String(left.typeOne).localeCompare(
+              String(right.typeOne),
+              "zh-Hans-CN",
+              {
+                numeric: true,
+              },
+            );
+            if (typeOneCompare !== 0) {
+              return typeOneCompare;
+            }
+            const typeTwoCompare = String(left.typeTwo).localeCompare(
+              String(right.typeTwo),
+              "zh-Hans-CN",
+            );
+            if (typeTwoCompare !== 0) {
+              return typeTwoCompare;
+            }
+            return String(left.title).localeCompare(
+              String(right.title),
+              "zh-Hans-CN",
+            );
+          });
+        const nextFileTree = buildFileTree(mergedFiles);
 
-        setVideoFiles(nextVideoFiles);
-        setPdfFiles(nextPdfFiles);
-        setVideoTree(nextVideoTree);
-        setPdfTree(nextPdfTree);
+        setFileTree(nextFileTree);
 
-        console.log("[HealthGuidance] 视频文件:", nextVideoFiles);
-        console.log("[HealthGuidance] pdf 文件:", nextPdfFiles);
-        console.log("[HealthGuidance] 视频分级目录:", nextVideoTree);
-        console.log("[HealthGuidance] pdf 分级目录:", nextPdfTree);
+        console.log("[HealthGuidance] 合并文件目录:", nextFileTree);
       } catch (error) {
         console.error("[HealthGuidance] API 调用失败:", error);
         setErrorText("健康指导内容获取失败，请稍后重试");
@@ -177,36 +191,43 @@ export default function HealthGuidance() {
         </View>
         <View className="header-content">
           <Text className="title">健康指导</Text>
-          <Text className="subtitle">视频与文件分类预览</Text>
+          <Text className="subtitle">了解最新的健康指导内容</Text>
         </View>
       </View>
 
       <View className="content-panel">
         <View className="section-card">
-          <Text className="section-title">视频预览区</Text>
-          {videoTree.length ? (
-            videoTree.map((levelOne) => (
+          <Text className="section-title">内容预览区</Text>
+          {fileTree.length ? (
+            fileTree.map((levelOne) => (
               <View
                 className="pdf-level-one"
-                key={`video-${levelOne.typeName}`}
+                key={`${levelOne.typeOne}-${levelOne.typeName}`}
               >
-                <Text className="pdf-level-one-title">{levelOne.typeName}</Text>
+                <Text className="pdf-level-one-title">
+                  {levelOne.typeName || "未分类"}
+                </Text>
                 {levelOne.children.map((levelTwo) => (
                   <View
                     className="pdf-level-two"
-                    key={`video-${levelOne.typeName}-${levelTwo.typeTwo}`}
+                    key={`${levelOne.typeOne}-${levelTwo.typeTwo}`}
                   >
                     <Text className="pdf-level-two-title">
                       {levelTwo.typeTwo}
                     </Text>
                     {levelTwo.files.map((item) => (
                       <View
-                        className="pdf-item"
+                        className={`pdf-item pdf-item--${item.fileType}`}
                         key={item.id}
                         onClick={() => handlePreviewFile(item)}
                       >
-                        <Text className="item-title">{item.title}</Text>
-                        <Text className="item-action">点击播放</Text>
+                        <View className="item-title-wrap">
+                          <Text className="item-title">{item.title}</Text>
+                          <Text className="item-file-icon"></Text>
+                        </View>
+                        <Text className="item-action">
+                          {item.fileType === "video" ? "点击播放" : "点击预览"}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -215,42 +236,7 @@ export default function HealthGuidance() {
             ))
           ) : (
             <Text className="empty-text">
-              {loading ? "正在加载视频..." : "暂无可预览视频"}
-            </Text>
-          )}
-        </View>
-
-        <View className="section-card">
-          <Text className="section-title">PDF 文件预览区</Text>
-          {pdfTree.length ? (
-            pdfTree.map((levelOne) => (
-              <View className="pdf-level-one" key={levelOne.typeName}>
-                <Text className="pdf-level-one-title">{levelOne.typeName}</Text>
-                {levelOne.children.map((levelTwo) => (
-                  <View
-                    className="pdf-level-two"
-                    key={`${levelOne.typeName}-${levelTwo.typeTwo}`}
-                  >
-                    <Text className="pdf-level-two-title">
-                      {levelTwo.typeTwo}
-                    </Text>
-                    {levelTwo.files.map((item) => (
-                      <View
-                        className="pdf-item"
-                        key={item.id}
-                        onClick={() => handlePreviewFile(item)}
-                      >
-                        <Text className="item-title">{item.title}</Text>
-                        <Text className="item-action">点击预览</Text>
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            ))
-          ) : (
-            <Text className="empty-text">
-              {loading ? "正在加载 PDF..." : "暂无可预览 PDF 文件"}
+              {loading ? "正在加载内容..." : "暂无可预览内容"}
             </Text>
           )}
         </View>

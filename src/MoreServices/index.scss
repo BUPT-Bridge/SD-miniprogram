@@ -1,7 +1,51 @@
 .page {
   min-height: 100vh;
-  padding: 40px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: linear-gradient(135deg, #ffc987 0%, #8db7ff 100%);
   color: #fff;
+}
+
+.popup-mask {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 36%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8vw;
+}
+
+.popup-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 24px;
+  padding: 36px 30px 30px;
+  text-align: center;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 18%);
+}
+
+.popup-title {
+  display: block;
+  color: #444;
+  font-size: 34px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.popup-content {
+  display: block;
+  color: #666;
+  font-size: 30px;
+  margin-bottom: 28px;
+}
+
+.popup-btn {
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffc987 0%, #8db7ff 100%);
+  color: #fff;
+  font-size: 28px;
+  padding: 16px 0;
 }

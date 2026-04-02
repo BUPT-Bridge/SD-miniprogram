@@ -1,4 +1,4 @@
-import { View, Text, RadioGroup, Radio } from "@tarojs/components";
+import { View, Text } from "@tarojs/components";
 import { useState, useEffect } from "react";
 import Taro from "@tarojs/taro";
 import { getPolicyType, getPolicyFile } from "../api";
@@ -43,8 +43,8 @@ export default function PolicyRegulation() {
     }
   }, [selectedType]);
 
-  const handleTypeChange = (event) => {
-    setSelectedType(event.detail.value);
+  const handleTypeClick = (type) => {
+    setSelectedType(type);
   };
 
   const goBack = () => {
@@ -82,29 +82,32 @@ export default function PolicyRegulation() {
 
       <View className="form-item">
         <Text className="form-label">政策类型</Text>
-        <RadioGroup className="radio-group" onChange={handleTypeChange}>
+        <View className="type-group">
           {policyTypes.map((policyType) => (
-            <Radio
+            <View
               key={policyType.id}
-              className="radio"
-              value={policyType.type}
-              checked={selectedType === policyType.type}
+              className={`type-button ${
+                selectedType === policyType.type ? "active" : ""
+              }`}
+              onClick={() => handleTypeClick(policyType.type)}
             >
               {policyType.type}
-            </Radio>
+            </View>
           ))}
-        </RadioGroup>
+        </View>
       </View>
 
       <View className="policy-files-list">
         {policyFiles.map((file) => (
           <View key={file.id} className="policy-file-item">
-            <Text className="file-title">{file.title}</Text>
-            <Text className="file-time">
-              {file.createTime || file.create_time}
-            </Text>
-            <View className="preview-btn" onClick={() => openPreview(file)}>
-              <Text>查看文件</Text>
+            <View className="file-head">
+              <View className="file-title-wrap">
+                <Text className="file-title-icon">📄</Text>
+                <Text className="file-title">{file.title}</Text>
+              </View>
+              <View className="preview-btn" onClick={() => openPreview(file)}>
+                <Text>查看文件</Text>
+              </View>
             </View>
           </View>
         ))}
