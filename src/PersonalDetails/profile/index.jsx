@@ -130,7 +130,7 @@ export default function Profile() {
           <Cell className="nickname-box" clickable center={false}>
             {isLogged ? userInfo?.nickname || "微信用户" : "未登录"}
           </Cell>
-          {/* 
+          {/*
           <Flex direction="column" align="center" className="status-row">
             <Flex align="center" className="status-item">
               <LocationOutlined />
@@ -205,9 +205,9 @@ export default function Profile() {
             shape="round"
             block
             style={{
-              background: "#ffffff",
-              color: "#ee0a24",
-              border: "1px solid #ee0a24",
+              background: "#FFD21E",
+              color: "#ffffff",
+              border: "1px solid #ffffff",
             }}
             onClick={handleLogout}
           >
@@ -218,7 +218,7 @@ export default function Profile() {
             shape="round"
             block
             style={{
-              background: "linear-gradient(to right, #ff6034, #ee0a24)",
+              background: "linear-gradient(to right, #FFD21E, #FFD21E)",
               color: "#fff",
               border: "none",
             }}
