@@ -1,16 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Taro, { useLoad } from "@tarojs/taro";
 import { View, Text, ScrollView, Textarea, RichText } from "@tarojs/components";
-import { Button } from "@taroify/core";
-import {
-  Arrow,
-  Stop,
-  SmileOutlined,
-  FontOutlined,
-  UserOutlined,
-  ChatOutlined,
-  AddOutlined,
-} from "@taroify/icons";
+import Button from "@taroify/core/button";
+import Arrow from "@taroify/icons/Arrow";
+import Stop from "@taroify/icons/Stop";
+import SmileOutlined from "@taroify/icons/SmileOutlined";
+import FontOutlined from "@taroify/icons/FontOutlined";
+import UserOutlined from "@taroify/icons/UserOutlined";
+import ChatOutlined from "@taroify/icons/ChatOutlined";
+import AddOutlined from "@taroify/icons/AddOutlined";
 import {
   sendMessageStream,
   saveChatHistory,

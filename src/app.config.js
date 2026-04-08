@@ -6,8 +6,6 @@ export default defineAppConfig({
     "PersonalDetails/profile-info/index",
     "PersonalDetails/about/index",
     "ContactCommunity/Contact/index",
-    "PolicyRegulation/index",
-    "PolicyRegulation/preview/index",
     "HealthService/index",
     "ResourceList/index",
     "ServiceMap/index",
@@ -16,6 +14,12 @@ export default defineAppConfig({
     "HealthGuidance/preview/index",
     "ElderlyCareMeal/index",
     "MoreServices/index",
+  ],
+  subPackages: [
+    {
+      root: "PolicyRegulation",
+      pages: ["index", "preview/index"],
+    },
   ],
   tabBar: {
     custom: true,

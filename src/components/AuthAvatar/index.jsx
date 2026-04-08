@@ -1,5 +1,5 @@
-import { Image } from "@taroify/core";
-import { User } from "@taroify/icons";
+import Image from "@taroify/core/image";
+import User from "@taroify/icons/User";
 import { View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useState, useEffect } from "react";

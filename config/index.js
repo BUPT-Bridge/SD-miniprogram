@@ -27,10 +27,6 @@ export default defineConfig(async (merge, {}) => {
     copy: {
       patterns: [
         {
-          from: "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js",
-          to: "dist/pdf.worker.min.js",
-        },
-        {
           from: "node_modules/pdfjs-dist/cmaps",
           to: "dist/cmaps",
         },

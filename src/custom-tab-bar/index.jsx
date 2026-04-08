@@ -1,9 +1,11 @@
 import Taro from "@tarojs/taro";
 import { Component } from "react";
-import { Tabbar } from "@taroify/core";
-import { HomeOutlined, ChatOutlined, ManagerOutlined } from "@taroify/icons";
+import Tabbar from "@taroify/core/tabbar";
+import HomeOutlined from "@taroify/icons/HomeOutlined";
+import ChatOutlined from "@taroify/icons/ChatOutlined";
+import ManagerOutlined from "@taroify/icons/ManagerOutlined";
 import "@taroify/core/tabbar/style";
-import "@taroify/icons/index.scss";
+import "@taroify/icons/styles/icon.scss";
 import "./index.scss";
 
 export default class CustomTabBar extends Component {

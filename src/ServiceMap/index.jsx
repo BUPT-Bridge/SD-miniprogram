@@ -1,8 +1,11 @@
 import { View, Text } from "@tarojs/components";
 import { useState, useEffect } from "react";
 import Taro from "@tarojs/taro";
-import { Button, Tag } from "@taroify/core";
-import { ArrowLeft, Arrow, LocationOutlined } from "@taroify/icons";
+import Button from "@taroify/core/button";
+import Tag from "@taroify/core/tag";
+import ArrowLeft from "@taroify/icons/ArrowLeft";
+import Arrow from "@taroify/icons/Arrow";
+import LocationOutlined from "@taroify/icons/LocationOutlined";
 import { getServiceMapTypes } from "../api/serviceMap";
 import { getCommunityServices } from "../api/community_service";
 import "./index.scss";

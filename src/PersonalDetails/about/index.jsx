@@ -1,11 +1,12 @@
 import { View, Text } from "@tarojs/components";
-import { Image, Cell, Button, Flex } from "@taroify/core";
-import {
-  CommentOutlined,
-  FriendsOutlined,
-  SettingOutlined,
-  ShieldOutlined,
-} from "@taroify/icons";
+import Image from "@taroify/core/image";
+import Cell from "@taroify/core/cell";
+import Button from "@taroify/core/button";
+import Flex from "@taroify/core/flex";
+import CommentOutlined from "@taroify/icons/CommentOutlined";
+import FriendsOutlined from "@taroify/icons/FriendsOutlined";
+import SettingOutlined from "@taroify/icons/SettingOutlined";
+import ShieldOutlined from "@taroify/icons/ShieldOutlined";
 import Taro from "@tarojs/taro";
 import logo from "../../static/logo.webp";
 import "./index.scss";

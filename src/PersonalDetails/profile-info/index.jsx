@@ -1,6 +1,9 @@
 import { View, Input, Button as NativeButton } from "@tarojs/components";
-import { Cell, Button, Flex, Dialog } from "@taroify/core";
-import { Edit } from "@taroify/icons";
+import Cell from "@taroify/core/cell";
+import Button from "@taroify/core/button";
+import Flex from "@taroify/core/flex";
+import Dialog from "@taroify/core/dialog";
+import Edit from "@taroify/icons/Edit";
 import Taro from "@tarojs/taro";
 import { useState, useEffect } from "react";
 import { useUser } from "../../context/UserContext"; // 导入Context Hook

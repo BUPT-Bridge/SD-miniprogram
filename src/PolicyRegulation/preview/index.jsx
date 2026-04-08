@@ -343,22 +343,10 @@ export default function PolicyPreview() {
       }
       globalObj.DOMException = MiniDomException;
     }
-    const workerModule = await import("pdfjs-dist/legacy/build/pdf.worker");
-    const worker = workerModule?.WorkerMessageHandler
-      ? workerModule
-      : workerModule?.default;
-    if (worker?.WorkerMessageHandler) {
-      globalObj.pdfjsWorker = {
-        WorkerMessageHandler: worker.WorkerMessageHandler,
-      };
-    }
     const module = await import("pdfjs-dist/legacy/build/pdf");
     const pdfjs = module?.getDocument ? module : module?.default;
     if (!pdfjs || typeof pdfjs.getDocument !== "function") {
       throw new Error("Load pdf.js failed");
-    }
-    if (pdfjs.GlobalWorkerOptions) {
-      pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
     }
     pdfjsRef.current = pdfjs;
     return pdfjs;
