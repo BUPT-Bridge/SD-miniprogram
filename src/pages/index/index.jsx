@@ -1,4 +1,4 @@
-import { View } from "@tarojs/components";
+﻿import { ScrollView, View } from "@tarojs/components";
 import { useLoad } from "@tarojs/taro";
 import { useEffect, useState } from "react";
 import { getSlideShowList } from "../../api/bannerSwiper";
@@ -24,9 +24,9 @@ export default function Index() {
         const slides = Array.isArray(res?.slideshows) ? res.slideshows : [];
         const images = slides
           .filter((item) => item?.index)
-          .map((item, index) => ({
+          .map((item) => ({
             url: `${baseUrl}/api/mutil_media/download?uuid=${encodeURIComponent(item.index)}`,
-            alt: `轮播图${index + 1}`,
+            alt: `杞挱鍥?{index + 1}`,
           }));
         setBannerImages(images);
       })
@@ -44,15 +44,17 @@ export default function Index() {
   }, []);
 
   return (
-    <View className="index">
-      <BannerSwiper
-        images={bannerImages}
-        autoplay={3000}
-        height={150}
-        //onChange={(index) => console.log("当前轮播索引:", index)}
-      />
-      <WarmTip text={noticeText} />
-      <ServiceGrid />
-    </View>
+    <ScrollView className="index" scrollY showScrollbar={false}>
+      <View className="index__content">
+        <BannerSwiper
+          images={bannerImages}
+          autoplay={3000}
+          height={150}
+          //onChange={(index) => console.log("褰撳墠杞挱绱㈠紩:", index)}
+        />
+        <WarmTip text={noticeText} />
+        <ServiceGrid />
+      </View>
+    </ScrollView>
   );
 }
