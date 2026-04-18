@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { View, Text } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import {
+  DescriptionOutlined,
+  PlayCircleOutlined,
+  ArrowRight,
+} from "@taroify/icons";
+import {
   getHealthGuideTypes,
   getHealthGuideContentsWithFileUrl,
   buildHealthGuideFileUrl,
@@ -222,12 +227,21 @@ export default function HealthGuidance() {
                         onClick={() => handlePreviewFile(item)}
                       >
                         <View className="item-title-wrap">
+                          {item.fileType === "video" ? (
+                            <PlayCircleOutlined className="item-icon item-icon--video" />
+                          ) : (
+                            <DescriptionOutlined className="item-icon item-icon--pdf" />
+                          )}
                           <Text className="item-title">{item.title}</Text>
-                          <Text className="item-file-icon"></Text>
                         </View>
-                        <Text className="item-action">
-                          {item.fileType === "video" ? "点击播放" : "点击预览"}
-                        </Text>
+                        <View className="item-action-wrap">
+                          <Text className="item-action">
+                            {item.fileType === "video"
+                              ? "点击播放"
+                              : "点击预览"}
+                          </Text>
+                          <ArrowRight className="item-action-icon" />
+                        </View>
                       </View>
                     ))}
                   </View>

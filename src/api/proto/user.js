@@ -42,6 +42,7 @@ $root.api = (function () {
        * @property {string|null} [isImportant] User isImportant
        * @property {string|null} [avatar] User avatar
        * @property {string|null} [permission] User permission
+       * @property {string|null} [xApiKey] User xApiKey
        */
 
       /**
@@ -130,6 +131,14 @@ $root.api = (function () {
        * @instance
        */
       User.prototype.permission = null;
+
+      /**
+       * User xApiKey.
+       * @member {string|null|undefined} xApiKey
+       * @memberof api.user.User
+       * @instance
+       */
+      User.prototype.xApiKey = null;
 
       // OneOf field names bound to virtual getters and setters
       var $oneOfFields;
@@ -234,6 +243,17 @@ $root.api = (function () {
       });
 
       /**
+       * User _xApiKey.
+       * @member {"xApiKey"|undefined} _xApiKey
+       * @memberof api.user.User
+       * @instance
+       */
+      Object.defineProperty(User.prototype, "_xApiKey", {
+        get: $util.oneOfGetter(($oneOfFields = ["xApiKey"])),
+        set: $util.oneOfSetter($oneOfFields),
+      });
+
+      /**
        * Creates a new User instance using the specified properties.
        * @function create
        * @memberof api.user.User
@@ -298,6 +318,11 @@ $root.api = (function () {
           Object.hasOwnProperty.call(message, "permission")
         )
           writer.uint32(/* id 9, wireType 2 =*/ 74).string(message.permission);
+        if (
+          message.xApiKey != null &&
+          Object.hasOwnProperty.call(message, "xApiKey")
+        )
+          writer.uint32(/* id 10, wireType 2 =*/ 82).string(message.xApiKey);
         return writer;
       };
 
@@ -366,6 +391,10 @@ $root.api = (function () {
             }
             case 9: {
               message.permission = reader.string();
+              break;
+            }
+            case 10: {
+              message.xApiKey = reader.string();
               break;
             }
             default:
@@ -454,6 +483,11 @@ $root.api = (function () {
           if (!$util.isString(message.permission))
             return "permission: string expected";
         }
+        if (message.xApiKey != null && message.hasOwnProperty("xApiKey")) {
+          properties._xApiKey = 1;
+          if (!$util.isString(message.xApiKey))
+            return "xApiKey: string expected";
+        }
         return null;
       };
 
@@ -481,6 +515,7 @@ $root.api = (function () {
         if (object.avatar != null) message.avatar = String(object.avatar);
         if (object.permission != null)
           message.permission = String(object.permission);
+        if (object.xApiKey != null) message.xApiKey = String(object.xApiKey);
         return message;
       };
 
@@ -540,6 +575,10 @@ $root.api = (function () {
         ) {
           object.permission = message.permission;
           if (options.oneofs) object._permission = "permission";
+        }
+        if (message.xApiKey != null && message.hasOwnProperty("xApiKey")) {
+          object.xApiKey = message.xApiKey;
+          if (options.oneofs) object._xApiKey = "xApiKey";
         }
         return object;
       };

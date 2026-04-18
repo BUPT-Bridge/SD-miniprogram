@@ -12,15 +12,22 @@ export default defineAppConfig({
     "Feedback/index",
     "HealthGuidance/index",
     "HealthGuidance/preview/index",
+    "PolicyPreview/index",
     "ElderlyCareMeal/index",
     "MoreServices/index",
   ],
   subPackages: [
     {
       root: "PolicyRegulation",
-      pages: ["index", "preview/index"],
+      pages: ["index"],
     },
   ],
+  preloadRule: {
+    "PolicyRegulation/index": {
+      network: "all",
+      packages: ["PolicyRegulation"],
+    },
+  },
   tabBar: {
     custom: true,
     color: "#000000",

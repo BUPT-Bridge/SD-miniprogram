@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { View, Text, Video } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { getHealthGuideMediaTempFileByUuid } from "../../api/healthGuidance";
-import PolicyPreview from "../../PolicyRegulation/preview/index";
+import PolicyPdfPreview from "../../components/PolicyPdfPreview";
 import "./index.scss";
 
 export default function HealthGuidancePreview() {
@@ -68,7 +68,7 @@ export default function HealthGuidancePreview() {
   }, [isVideo, uuid]);
 
   if (!isVideo) {
-    return <PolicyPreview />;
+    return <PolicyPdfPreview uuid={uuid} />;
   }
 
   const goBack = () => {

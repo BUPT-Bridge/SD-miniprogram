@@ -7,10 +7,18 @@ import { BAILIAN_CONFIG } from "../config/bailian";
  * 检查配置是否完整
  */
 const checkConfig = () => {
-  const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-  if (!API_URL || !API_KEY || !APP_ID) {
-    throw new Error("百炼 API 配置不完整，请先填写 API_URL、API_KEY 和 APP_ID");
+  const { API_URL } = BAILIAN_CONFIG;
+  if (!API_URL) {
+    throw new Error("百炼 API 配置不完整，请先填写 API_URL");
   }
+};
+
+const buildApiUrl = () => {
+  const { API_URL, APP_ID } = BAILIAN_CONFIG;
+  if (APP_ID && !API_URL.includes(APP_ID)) {
+    return `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
+  }
+  return API_URL;
 };
 
 /**
@@ -46,17 +54,20 @@ const parseSSELine = (line) => {
  * @param {Function} callbacks.onAbort - 中止时调用
  * @returns {Function} 中止函数
  */
-export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
+export const sendMessageStream = (
+  prompt,
+  history = [],
+  callbacks = {},
+  options = {},
+) => {
   checkConfig();
+  const apiKey = options.apiKey || "";
+  if (!apiKey) {
+    throw new Error("未获取到 API Key，请先登录");
+  }
 
   const { onChunk, onDone, onError } = callbacks;
-  const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-
-  // 构建完整的 API URL
-  let fullApiUrl = API_URL;
-  if (APP_ID && !API_URL.includes(APP_ID)) {
-    fullApiUrl = `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
-  }
+  const fullApiUrl = buildApiUrl();
 
   let fullText = "";
   let isAborted = false;
@@ -100,7 +111,7 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
         method: "POST",
         header: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           Accept: "text/event-stream",
           "X-DashScope-SSE": "enable",
         },
@@ -226,25 +237,26 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
  * @param {string} assistantContent - AI 回复内容
  * @returns {Promise<string>} 生成的标题
  */
-export const generateSmartTitle = async (userContent, assistantContent) => {
+export const generateSmartTitle = async (
+  userContent,
+  assistantContent,
+  apiKey = "",
+) => {
   if (!userContent) return "新对话";
 
   // 如果内容很短，直接截取
   if (userContent.length < 10) return userContent;
+  if (!apiKey) return generateChatTitle(userContent);
 
   try {
-    const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-    let fullApiUrl = API_URL;
-    if (APP_ID && !API_URL.includes(APP_ID)) {
-      fullApiUrl = `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
-    }
+    const fullApiUrl = buildApiUrl();
 
     const res = await Taro.request({
       url: fullApiUrl,
       method: "POST",
       header: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       data: {
         input: {
