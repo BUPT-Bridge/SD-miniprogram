@@ -12,6 +12,10 @@ import { uploadMedia, MediaType } from "../../api/media";
 import AuthAvatar from "../../components/AuthAvatar";
 import "./index.scss";
 
+const isDomainListError = (error) =>
+  error?.errno === 600002 ||
+  /url not in domain list/i.test(error?.errMsg || error?.message || "");
+
 export default function ProfileInfo() {
   const {
     userInfo: contextUserInfo,
@@ -22,6 +26,7 @@ export default function ProfileInfo() {
 
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authCode, setAuthCode] = useState("");
+  const [localAvatarPath, setLocalAvatarPath] = useState("");
 
   const [userInfo, setUserInfo] = useState({
     avatar: "",
@@ -117,6 +122,7 @@ export default function ProfileInfo() {
         quality: 80, // 默认80，可调整
       });
       const compressedPath = compressedRes.tempFilePath;
+      setLocalAvatarPath(compressedPath);
 
       // 2. 上传文件获取 UUID
       // 根据需求：avatar=true (使用 MediaType.AVATAR = 2)
@@ -133,7 +139,13 @@ export default function ProfileInfo() {
     } catch (error) {
       console.error("Avatar process/upload failed:", error);
       if (error?.code !== 401 && error?.statusCode !== 401) {
-        Taro.showToast({ title: "头像上传失败", icon: "none" });
+        Taro.showToast({
+          title: isDomainListError(error)
+            ? "上传域名未配置，请联系管理员"
+            : "头像上传失败",
+          icon: "none",
+          duration: 2500,
+        });
       }
     } finally {
       Taro.hideLoading();
@@ -222,6 +234,7 @@ export default function ProfileInfo() {
           >
             <AuthAvatar
               uuid={userInfo.avatar}
+              src={localAvatarPath}
               className="avatar"
               shape="circle"
             />

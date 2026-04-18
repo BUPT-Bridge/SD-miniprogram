@@ -1,5 +1,7 @@
 import Taro from "@tarojs/taro";
 
+/* global wx */
+
 const BASE_URL = (process.env.TARO_APP_API || "").replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "auth_token";
 
@@ -125,7 +127,7 @@ export const uploadFile = ({
   const authHeader = withAuth && token ? { Authorization: token } : {};
 
   return new Promise((resolve, reject) => {
-    Taro.uploadFile({
+    wx.uploadFile({
       url: `${BASE_URL}${url}`,
       filePath,
       name,
@@ -154,7 +156,7 @@ export const downloadFile = ({ url, withAuth = true }) => {
   const authHeader = withAuth && token ? { Authorization: token } : {};
 
   return new Promise((resolve, reject) => {
-    Taro.downloadFile({
+    wx.downloadFile({
       url: `${BASE_URL}${url}`,
       header: {
         ...authHeader,

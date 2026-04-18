@@ -9,6 +9,10 @@ import { downloadFile, withQuery, getAuthToken } from "../../api/request";
 const AVATAR_CACHE = new Map();
 const fileSystemManager = Taro.getFileSystemManager();
 
+const isDomainListError = (error) =>
+  error?.errno === 600002 ||
+  /url not in domain list/i.test(error?.errMsg || error?.message || "");
+
 const checkFileExists = (filePath) => {
   return new Promise((resolve) => {
     if (!filePath) {
@@ -33,6 +37,7 @@ const buildAvatarUrl = (uuid) => {
 
 export default function AuthAvatar({
   uuid,
+  src: explicitSrc,
   shape = "circle",
   className,
   style,
@@ -43,6 +48,14 @@ export default function AuthAvatar({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [useDirectUrl, setUseDirectUrl] = useState(false);
+
+  useEffect(() => {
+    if (explicitSrc) {
+      setSrc(explicitSrc);
+      setError(false);
+      setLoading(false);
+    }
+  }, [explicitSrc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +99,10 @@ export default function AuthAvatar({
 
   useEffect(() => {
     if (!resolvedUuid) {
+      return;
+    }
+
+    if (explicitSrc) {
       return;
     }
 
@@ -135,12 +152,16 @@ export default function AuthAvatar({
           setError(true);
         }
       } catch (e) {
-        console.error("Avatar download failed, fallback to direct URL", e);
+        console.warn("Avatar download failed", e);
         // 下载失败时，回退到直接使用 URL
         if (!cancelled) {
-          setUseDirectUrl(true);
-          const url = buildAvatarUrl(resolvedUuid);
-          setSrc(url);
+          if (isDomainListError(e)) {
+            setError(true);
+          } else {
+            setUseDirectUrl(true);
+            const url = buildAvatarUrl(resolvedUuid);
+            setSrc(url);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -154,9 +175,9 @@ export default function AuthAvatar({
     return () => {
       cancelled = true;
     };
-  }, [resolvedUuid, useDirectUrl]);
+  }, [explicitSrc, resolvedUuid, useDirectUrl]);
 
-  if (!resolvedUuid || error || (loading && !src)) {
+  if ((!resolvedUuid && !src) || error || (loading && !src)) {
     return (
       <View
         className={className}
