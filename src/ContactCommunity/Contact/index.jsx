@@ -1,6 +1,10 @@
 import { View, Text } from "@tarojs/components";
-import { Button, Flex } from "@taroify/core";
-import { Phone, Location, ArrowLeft, HomeOutlined } from "@taroify/icons";
+import Button from "@taroify/core/button";
+import Flex from "@taroify/core/flex";
+import Phone from "@taroify/icons/Phone";
+import Location from "@taroify/icons/Location";
+import ArrowLeft from "@taroify/icons/ArrowLeft";
+import HomeOutlined from "@taroify/icons/HomeOutlined";
 import Taro from "@tarojs/taro";
 import { useState, useEffect } from "react";
 import { getCommunityServices } from "../../api/community_service";

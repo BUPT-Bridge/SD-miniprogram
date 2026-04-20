@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, Video } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { getHealthGuideMediaTempFileByUuid } from "../../api/healthGuidance";
-import PolicyPreview from "../../PolicyRegulation/preview/index";
+import PolicyPdfPreview from "../../components/PolicyPdfPreview";
 import "./index.scss";
 
 export default function HealthGuidancePreview() {
@@ -20,6 +19,11 @@ export default function HealthGuidancePreview() {
       String(decodeURIComponent(routerParams.fileType || "pdf")).toLowerCase(),
     [routerParams.fileType],
   );
+  const fileUrl = useMemo(
+    () => decodeURIComponent(routerParams.fileUrl || ""),
+    [routerParams.fileUrl],
+  );
+
   const isVideo = fileType === "video";
   const [videoUrl, setVideoUrl] = useState("");
   const [videoLoading, setVideoLoading] = useState(false);
@@ -29,46 +33,48 @@ export default function HealthGuidancePreview() {
     if (!isVideo) {
       return undefined;
     }
-    console.log("[HealthGuidance][preview] 准备加载视频，uuid:", uuid);
+    console.log("[HealthGuidance][preview] 准备加载视频，fileUrl:", fileUrl);
+
     let unmounted = false;
-    const loadVideo = async () => {
-      if (!uuid) {
-        console.error("[HealthGuidance][preview] 视频 uuid 为空");
+    const loadVideo = () => {
+      if (!fileUrl) {
+        console.error("[HealthGuidance][preview] 视频地址为空");
         setVideoError("无效文件参数，无法预览视频");
         return;
       }
+
       setVideoLoading(true);
       setVideoError("");
+
       try {
-        const tempFilePath = await getHealthGuideMediaTempFileByUuid(uuid);
         if (unmounted) {
           return;
         }
-        console.log(
-          "[HealthGuidance][preview] 视频临时文件路径:",
-          tempFilePath,
-        );
-        setVideoUrl(tempFilePath);
+
+        console.log("[HealthGuidance][preview] 视频直连地址:", fileUrl);
+        setVideoUrl(fileUrl);
       } catch (error) {
         if (unmounted) {
           return;
         }
         console.error("[HealthGuidance][preview] 视频加载失败:", error);
-        setVideoError("视频加载失败，请确认登录状态后重试");
+        setVideoError("视频加载失败，请重试");
       } finally {
         if (!unmounted) {
           setVideoLoading(false);
         }
       }
     };
+
     loadVideo();
+
     return () => {
       unmounted = true;
     };
-  }, [isVideo, uuid]);
+  }, [isVideo, fileUrl]);
 
   if (!isVideo) {
-    return <PolicyPreview />;
+    return <PolicyPdfPreview uuid={uuid} />;
   }
 
   const goBack = () => {
@@ -104,7 +110,7 @@ export default function HealthGuidancePreview() {
             objectFit="contain"
             onError={(event) => {
               console.error("[HealthGuidance][preview] video onError:", event);
-              setVideoError("视频解码失败，可能是编码格式不兼容");
+              setVideoError("视频播放失败，请检查登录状态或文件访问权限");
             }}
             onLoadedMetadata={(event) => {
               console.log(

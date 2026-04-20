@@ -27,29 +27,23 @@ export default function PolicyRegulation() {
   }, []);
 
   useEffect(() => {
-    if (selectedType) {
-      const fetchPolicyFiles = async () => {
-        try {
-          const res = await getPolicyFile(selectedType);
-          const files = res.policyFiles || res.policy_files || [];
-          setPolicyFiles(files);
-        } catch (error) {
-          console.error("Failed to fetch policy files", error);
-          setPolicyFiles([]);
-        }
-      };
-
-      fetchPolicyFiles();
+    if (!selectedType) {
+      return;
     }
+
+    const fetchPolicyFiles = async () => {
+      try {
+        const res = await getPolicyFile(selectedType);
+        const files = res.policyFiles || res.policy_files || [];
+        setPolicyFiles(files);
+      } catch (error) {
+        console.error("Failed to fetch policy files", error);
+        setPolicyFiles([]);
+      }
+    };
+
+    fetchPolicyFiles();
   }, [selectedType]);
-
-  const handleTypeClick = (type) => {
-    setSelectedType(type);
-  };
-
-  const goBack = () => {
-    Taro.navigateBack();
-  };
 
   const openPreview = (file) => {
     if (!file?.index) {
@@ -59,10 +53,20 @@ export default function PolicyRegulation() {
       });
       return;
     }
-    const title = encodeURIComponent(file.title || "政策文件预览");
-    const uuid = encodeURIComponent(file.index);
+
+    const previewUrl = `/PolicyPreview/index?uuid=${encodeURIComponent(file.index)}`;
+    console.log("[PolicyRegulation] preview navigate url:", previewUrl);
+    console.log("[PolicyRegulation] preview file:", file);
+
     Taro.navigateTo({
-      url: `/PolicyRegulation/preview/index?uuid=${uuid}&title=${title}`,
+      url: previewUrl,
+      fail: (err) => {
+        console.error("[PolicyRegulation] navigateTo failed:", err);
+        Taro.showToast({
+          title: "页面跳转失败",
+          icon: "none",
+        });
+      },
     });
   };
 
@@ -70,7 +74,7 @@ export default function PolicyRegulation() {
     <View className="policy-regulation-page">
       <View className="custom-header">
         <View className="nav-bar">
-          <View className="back-btn" onClick={goBack}>
+          <View className="back-btn" onClick={() => Taro.navigateBack()}>
             <Text>&lt; 返回</Text>
           </View>
         </View>
@@ -89,7 +93,7 @@ export default function PolicyRegulation() {
               className={`type-button ${
                 selectedType === policyType.type ? "active" : ""
               }`}
-              onClick={() => handleTypeClick(policyType.type)}
+              onClick={() => setSelectedType(policyType.type)}
             >
               {policyType.type}
             </View>
@@ -102,7 +106,7 @@ export default function PolicyRegulation() {
           <View key={file.id} className="policy-file-item">
             <View className="file-head">
               <View className="file-title-wrap">
-                <Text className="file-title-icon">📄</Text>
+                <Text className="file-title-icon">文件</Text>
                 <Text className="file-title">{file.title}</Text>
               </View>
               <View className="preview-btn" onClick={() => openPreview(file)}>

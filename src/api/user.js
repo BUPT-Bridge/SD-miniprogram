@@ -7,6 +7,17 @@ const UserResponse = root.api.user.UserResponse;
 const UserRequest = root.api.user.UserRequest;
 const ApplyPermissionResponse = root.api.user.ApplyPermissionResponse;
 
+const parseJsonFromBinary = (data) => {
+  try {
+    const uint8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const text = new TextDecoder("utf-8").decode(uint8).trim();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
 /**
  * 辅助函数：解包 ApplyPermission 响应
  * @param {ArrayBuffer} data
@@ -25,6 +36,10 @@ const decodeApplyPermissionResponse = (data) => {
     return checkAuth(obj);
   } catch (error) {
     if (error.code === 401) throw error;
+    const jsonObj = parseJsonFromBinary(data);
+    if (jsonObj && typeof jsonObj === "object") {
+      return checkAuth(jsonObj);
+    }
     console.error("Proto decode error:", error);
     throw error;
   }

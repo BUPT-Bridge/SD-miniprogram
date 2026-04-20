@@ -1,16 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Taro, { useLoad } from "@tarojs/taro";
 import { View, Text, ScrollView, Textarea, RichText } from "@tarojs/components";
-import { Button } from "@taroify/core";
-import {
-  Arrow,
-  Stop,
-  SmileOutlined,
-  FontOutlined,
-  UserOutlined,
-  ChatOutlined,
-  AddOutlined,
-} from "@taroify/icons";
+import Button from "@taroify/core/button";
+import Arrow from "@taroify/icons/Arrow";
+import Stop from "@taroify/icons/Stop";
+import SmileOutlined from "@taroify/icons/SmileOutlined";
+import FontOutlined from "@taroify/icons/FontOutlined";
+import UserOutlined from "@taroify/icons/UserOutlined";
+import ChatOutlined from "@taroify/icons/ChatOutlined";
+import AddOutlined from "@taroify/icons/AddOutlined";
 import {
   sendMessageStream,
   saveChatHistory,
@@ -22,6 +20,7 @@ import {
   saveChatMessage,
   getChatSessions,
   getChatSessionDetail,
+  getUserInfo,
 } from "../../api";
 import { BAILIAN_CONFIG } from "../config/bailian";
 import "./index.scss";
@@ -131,6 +130,7 @@ export default function Chat() {
   const [streamingText, setStreamingText] = useState("");
   const [streamingId, setStreamingId] = useState(null);
   const [fontSize, setFontSize] = useState("normal");
+  const [apiKey, setApiKey] = useState("");
 
   const abortFnRef = useRef(null);
   const textBufferRef = useRef([]);
@@ -183,14 +183,47 @@ export default function Chat() {
       initNewChat();
     }
 
-    if (!BAILIAN_CONFIG.API_URL || !BAILIAN_CONFIG.API_KEY) {
+    if (!BAILIAN_CONFIG.API_URL) {
       Taro.showModal({
         title: "配置提示",
         content: "百炼 API 配置未填写，请先配置后再使用。",
         showCancel: false,
       });
     }
+    const loadApiKey = async () => {
+      const token = Taro.getStorageSync("token");
+      if (!token) {
+        setApiKey("");
+        return;
+      }
+      try {
+        const res = await getUserInfo();
+        const key = res?.user?.xApiKey || res?.user?.x_api_key || "";
+        console.log("[Chat] loadApiKey length:", key ? key.length : 0);
+        setApiKey(key);
+      } catch (error) {
+        console.error("[Chat] 获取用户 API Key 失败:", error);
+        setApiKey("");
+      }
+    };
+    loadApiKey();
   });
+
+  const resolveApiKey = async () => {
+    if (apiKey) return apiKey;
+    const token = Taro.getStorageSync("token");
+    if (!token) return "";
+    try {
+      const res = await getUserInfo();
+      const key = res?.user?.xApiKey || res?.user?.x_api_key || "";
+      console.log("[Chat] resolveApiKey length:", key ? key.length : 0);
+      setApiKey(key);
+      return key;
+    } catch (error) {
+      console.error("[Chat] 获取 API Key 失败:", error);
+      return "";
+    }
+  };
 
   const saveCurrentChat = useCallback(
     (newMessages, title = null) => {
@@ -249,7 +282,12 @@ export default function Chat() {
     setStreamingText("");
   };
 
-  const finishStream = async (fullText, streamId, userContent) => {
+  const finishStream = async (
+    fullText,
+    streamId,
+    userContent,
+    runtimeApiKey,
+  ) => {
     const aiMessage = { id: streamId, type: "ai", content: fullText };
 
     setMessages((prev) => {
@@ -272,7 +310,11 @@ export default function Chat() {
     let currentTitle = chatTitle;
     if (chatTitle === "新对话" || chatTitle === "New Chat") {
       try {
-        const smartTitle = await generateSmartTitle(userContent, fullText);
+        const smartTitle = await generateSmartTitle(
+          userContent,
+          fullText,
+          runtimeApiKey,
+        );
         if (smartTitle) {
           setChatTitle(smartTitle);
           currentTitle = smartTitle;
@@ -374,12 +416,22 @@ export default function Chat() {
     abortFnRef.current = null;
   };
 
-  const triggerChat = (content) => {
+  const triggerChat = async (content) => {
     if (isLoading) return;
 
-    if (!BAILIAN_CONFIG.API_URL || !BAILIAN_CONFIG.API_KEY) {
+    if (!BAILIAN_CONFIG.API_URL) {
       Taro.showToast({
-        title: "请先配置百炼 API",
+        title: "请先配置百炼 API URL",
+        icon: "none",
+        duration: 2000,
+      });
+      return;
+    }
+
+    const runtimeApiKey = await resolveApiKey();
+    if (!runtimeApiKey) {
+      Taro.showToast({
+        title: "请先登录后再使用 AI 助手",
         icon: "none",
         duration: 2000,
       });
@@ -423,7 +475,7 @@ export default function Chat() {
           clearInterval(streamTimerRef.current);
           streamTimerRef.current = null;
         }
-        finishStream(currentDisplayedText, streamId, content);
+        finishStream(currentDisplayedText, streamId, content, runtimeApiKey);
       } else if (
         !isStreamActiveRef.current &&
         currentDisplayedText.length === 0
@@ -453,16 +505,21 @@ export default function Chat() {
       console.log("[Chat] 历史消息最后一条:", history[history.length - 1]);
     }
 
-    abortFnRef.current = sendMessageStream(content, history, {
-      onChunk: (chunk) => {
-        if (chunk) textBufferRef.current.push(...chunk.split(""));
+    abortFnRef.current = sendMessageStream(
+      content,
+      history,
+      {
+        onChunk: (chunk) => {
+          if (chunk) textBufferRef.current.push(...chunk.split(""));
+        },
+        onDone: () => {
+          isStreamActiveRef.current = false;
+        },
+        onError: (error) => handleStreamError(error, streamId),
+        onAbort: () => handleStreamAbort(streamId),
       },
-      onDone: () => {
-        isStreamActiveRef.current = false;
-      },
-      onError: (error) => handleStreamError(error, streamId),
-      onAbort: () => handleStreamAbort(streamId),
-    });
+      { apiKey: runtimeApiKey },
+    );
   };
 
   const handleSendMessage = () => {

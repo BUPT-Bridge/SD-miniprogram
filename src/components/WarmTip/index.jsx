@@ -1,5 +1,5 @@
 import { View } from "@tarojs/components";
-import { NoticeBar } from "@taroify/core";
+import NoticeBar from "@taroify/core/notice-bar";
 import "@taroify/core/notice-bar/style";
 import "./index.scss";
 

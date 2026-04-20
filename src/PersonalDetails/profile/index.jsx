@@ -1,20 +1,16 @@
 import { View } from "@tarojs/components";
-import {
-  Cell,
-  Button,
-  Image,
-  Tag,
-  Flex,
-  Dialog,
-  ShareSheet,
-} from "@taroify/core";
-import {
-  User,
-  Scan,
-  InfoOutlined,
-  ContactOutlined,
-  ShareOutlined,
-} from "@taroify/icons";
+import Cell from "@taroify/core/cell";
+import Button from "@taroify/core/button";
+import Image from "@taroify/core/image";
+import Tag from "@taroify/core/tag";
+import Flex from "@taroify/core/flex";
+import Dialog from "@taroify/core/dialog";
+import ShareSheet from "@taroify/core/share-sheet";
+import User from "@taroify/icons/User";
+import Scan from "@taroify/icons/Scan";
+import InfoOutlined from "@taroify/icons/InfoOutlined";
+import ContactOutlined from "@taroify/icons/ContactOutlined";
+import ShareOutlined from "@taroify/icons/ShareOutlined";
 import Taro, { useLoad } from "@tarojs/taro";
 import { useState } from "react";
 import "./index.scss";

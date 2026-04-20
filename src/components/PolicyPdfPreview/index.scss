@@ -1,0 +1,20 @@
+.policy-preview-webview {
+  width: 100vw;
+  height: 100vh;
+}
+
+.policy-preview-empty {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: #f7f8fa;
+  box-sizing: border-box;
+}
+
+.policy-preview-empty__text {
+  color: #646566;
+  font-size: 28px;
+  text-align: center;
+}

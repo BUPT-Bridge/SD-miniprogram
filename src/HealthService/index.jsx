@@ -1,8 +1,11 @@
 import { View, Text } from "@tarojs/components";
 import { useState, useEffect } from "react";
 import Taro from "@tarojs/taro";
-import { Button } from "@taroify/core";
-import { ArrowLeft, Phone, LocationOutlined, Clock } from "@taroify/icons";
+import Button from "@taroify/core/button";
+import ArrowLeft from "@taroify/icons/ArrowLeft";
+import Phone from "@taroify/icons/Phone";
+import LocationOutlined from "@taroify/icons/LocationOutlined";
+import Clock from "@taroify/icons/Clock";
 import { getMedicalServices } from "../api/healthService";
 import "./index.scss";
 

@@ -1,6 +1,8 @@
 import Taro from "@tarojs/taro";
 
-const BASE_URL = process.env.TARO_APP_API;
+/* global wx */
+
+const BASE_URL = (process.env.TARO_APP_API || "").replace(/\/+$/, "");
 
 export const MediaType = {
   FILE: 0, // 普通文件
@@ -29,9 +31,9 @@ export const uploadMedia = (filePath, type = MediaType.FILE) => {
   }
 
   return new Promise((resolve, reject) => {
-    Taro.uploadFile({
-      url: url,
-      filePath: filePath,
+    wx.uploadFile({
+      url,
+      filePath,
       name: "file",
       header: {
         Authorization: Taro.getStorageSync("token") || "",

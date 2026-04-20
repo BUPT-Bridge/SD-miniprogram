@@ -1,5 +1,7 @@
 import Taro from "@tarojs/taro";
 
+/* global wx */
+
 const BASE_URL = (process.env.TARO_APP_API || "").replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "auth_token";
 
@@ -24,7 +26,12 @@ export const setAuthToken = (token) => {
 };
 
 export const getAuthToken = () => {
-  return Taro.getStorageSync(AUTH_TOKEN_KEY) || "";
+  return (
+    globalToken ||
+    Taro.getStorageSync("token") ||
+    Taro.getStorageSync(AUTH_TOKEN_KEY) ||
+    ""
+  );
 };
 
 export const clearAuthToken = () => {
@@ -43,12 +50,12 @@ export const setRequestToken = (token) => {
 };
 
 /**
- * 检查业务状态码 (Protobuf 解包后调用)
+ * 检查业务状态码 (Protobuf 解包后调�?
  * @param {object} res - 解包后的对象 (需包含 code 字段)
  */
 export const checkAuth = (res) => {
   if (res && res.code === 401) {
-    console.log("检测到业务逻辑 401，触发登出");
+    console.log("Detected business 401, triggering logout");
     Taro.eventCenter.trigger("auth:logout");
     throw { ...res, message: res.message || "Login expired" };
   }
@@ -81,12 +88,11 @@ const request = (options) => {
       method,
       data: requestData,
       responseType,
+      ...rest,
       header: {
         "Content-Type": "application/json",
         ...authHeader,
-        ...headers,
-        // 优先使用内存中的 Token，其次读取本地存储
-        Authorization: globalToken || Taro.getStorageSync("token") || "",
+        ...header,
         ...headers,
       },
       success: (res) => {
@@ -97,7 +103,7 @@ const request = (options) => {
               : res.data;
           resolve(result);
         } else if (res.statusCode === 401) {
-          // Token 过期或无效
+          // Token 过期或无�?
           reject({ ...res, message: "Token expired" });
         } else {
           reject(res);
@@ -121,7 +127,7 @@ export const uploadFile = ({
   const authHeader = withAuth && token ? { Authorization: token } : {};
 
   return new Promise((resolve, reject) => {
-    Taro.uploadFile({
+    wx.uploadFile({
       url: `${BASE_URL}${url}`,
       filePath,
       name,
@@ -149,11 +155,19 @@ export const downloadFile = ({ url, withAuth = true }) => {
   const token = getAuthToken();
   const authHeader = withAuth && token ? { Authorization: token } : {};
 
-  return Taro.downloadFile({
-    url: `${BASE_URL}${url}`,
-    header: {
-      ...authHeader,
-    },
+  return new Promise((resolve, reject) => {
+    wx.downloadFile({
+      url: `${BASE_URL}${url}`,
+      header: {
+        ...authHeader,
+      },
+      success: (res) => {
+        resolve(res);
+      },
+      fail: (err) => {
+        reject(err);
+      },
+    });
   });
 };
 

@@ -1,6 +1,7 @@
 import { Component } from "react";
 import { View } from "@tarojs/components";
-import { Swiper, Image } from "@taroify/core";
+import Swiper from "@taroify/core/swiper";
+import Image from "@taroify/core/image";
 import "@taroify/core/swiper/style";
 import "@taroify/core/image/style";
 import "./index.scss";

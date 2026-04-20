@@ -17,20 +17,4 @@
   border-top-right-radius: 24px;
   border-top: 2px solid rgb(255 217 61 / 20%);
   padding-bottom: env(safe-area-inset-bottom);
-
-  :global {
-    .taroify-tabbar__item {
-      font-weight: 800;
-      transition: all 0.3s ease;
-    }
-
-    .taroify-tabbar__item--active {
-      font-weight: 900;
-
-      .taroify-tabbar__icon {
-        transform: scale(1.15);
-        filter: drop-shadow(0 3px 8px rgb(255 140 0 / 35%));
-      }
-    }
-  }
 }

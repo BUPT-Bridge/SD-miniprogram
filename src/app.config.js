@@ -6,17 +6,28 @@ export default defineAppConfig({
     "PersonalDetails/profile-info/index",
     "PersonalDetails/about/index",
     "ContactCommunity/Contact/index",
-    "PolicyRegulation/index",
-    "PolicyRegulation/preview/index",
     "HealthService/index",
     "ResourceList/index",
     "ServiceMap/index",
     "Feedback/index",
     "HealthGuidance/index",
     "HealthGuidance/preview/index",
+    "PolicyPreview/index",
     "ElderlyCareMeal/index",
     "MoreServices/index",
   ],
+  subPackages: [
+    {
+      root: "PolicyRegulation",
+      pages: ["index"],
+    },
+  ],
+  preloadRule: {
+    "PolicyRegulation/index": {
+      network: "all",
+      packages: ["PolicyRegulation"],
+    },
+  },
   tabBar: {
     custom: true,
     color: "#000000",

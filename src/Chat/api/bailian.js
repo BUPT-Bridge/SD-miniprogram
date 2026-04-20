@@ -7,10 +7,102 @@ import { BAILIAN_CONFIG } from "../config/bailian";
  * 检查配置是否完整
  */
 const checkConfig = () => {
-  const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-  if (!API_URL || !API_KEY || !APP_ID) {
-    throw new Error("百炼 API 配置不完整，请先填写 API_URL、API_KEY 和 APP_ID");
+  const { API_URL } = BAILIAN_CONFIG;
+  if (!API_URL) {
+    throw new Error("百炼 API 配置不完整，请先填写 API_URL");
   }
+};
+
+const buildApiUrl = () => {
+  const { API_URL, APP_ID } = BAILIAN_CONFIG;
+  if (APP_ID && !API_URL.includes(APP_ID)) {
+    return `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
+  }
+  return API_URL;
+};
+
+const appendCodePoint = (codePoint) => {
+  if (codePoint <= 0xffff) {
+    return String.fromCharCode(codePoint);
+  }
+
+  const offset = codePoint - 0x10000;
+  return String.fromCharCode(
+    0xd800 + (offset >> 10),
+    0xdc00 + (offset & 0x3ff),
+  );
+};
+
+const createUtf8Decoder = () => {
+  let codePoint = 0;
+  let bytesNeeded = 0;
+
+  const reset = () => {
+    codePoint = 0;
+    bytesNeeded = 0;
+  };
+
+  const decode = (arrayBuffer) => {
+    if (!arrayBuffer || !(arrayBuffer instanceof ArrayBuffer)) return "";
+
+    const bytes = new Uint8Array(arrayBuffer);
+    let text = "";
+
+    for (let index = 0; index < bytes.length; index += 1) {
+      const byte = bytes[index];
+
+      if (bytesNeeded === 0) {
+        if (byte <= 0x7f) {
+          text += String.fromCharCode(byte);
+        } else if (byte >= 0xc2 && byte <= 0xdf) {
+          codePoint = byte & 0x1f;
+          bytesNeeded = 1;
+        } else if (byte >= 0xe0 && byte <= 0xef) {
+          codePoint = byte & 0x0f;
+          bytesNeeded = 2;
+        } else if (byte >= 0xf0 && byte <= 0xf4) {
+          codePoint = byte & 0x07;
+          bytesNeeded = 3;
+        } else {
+          text += "\ufffd";
+        }
+        continue;
+      }
+
+      if ((byte & 0xc0) === 0x80) {
+        codePoint = (codePoint << 6) | (byte & 0x3f);
+        bytesNeeded -= 1;
+
+        if (bytesNeeded === 0) {
+          text += appendCodePoint(codePoint);
+          codePoint = 0;
+        }
+      } else {
+        text += "\ufffd";
+        reset();
+        index -= 1;
+      }
+    }
+
+    return text;
+  };
+
+  const flush = () => {
+    if (bytesNeeded === 0) return "";
+    reset();
+    return "\ufffd";
+  };
+
+  return { decode, flush };
+};
+
+const decodeArrayBuffer = (arrayBuffer) => {
+  if (typeof TextDecoder !== "undefined") {
+    return new TextDecoder("utf-8").decode(arrayBuffer);
+  }
+
+  const decoder = createUtf8Decoder();
+  return decoder.decode(arrayBuffer) + decoder.flush();
 };
 
 /**
@@ -32,6 +124,19 @@ const parseSSELine = (line) => {
   }
 };
 
+const getParsedChunkText = (parsed) => {
+  if (parsed.output?.text) {
+    return parsed.output.text;
+  }
+  if (parsed.output?.message?.content) {
+    return parsed.output.message.content;
+  }
+  if (parsed.output?.choices?.[0]?.message?.content) {
+    return parsed.output.choices[0].message.content;
+  }
+  return "";
+};
+
 /**
  * 流式发送消息（SSE）- 阿里云百炼智能体
  *
@@ -46,21 +151,26 @@ const parseSSELine = (line) => {
  * @param {Function} callbacks.onAbort - 中止时调用
  * @returns {Function} 中止函数
  */
-export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
+export const sendMessageStream = (
+  prompt,
+  history = [],
+  callbacks = {},
+  options = {},
+) => {
   checkConfig();
+  const apiKey = options.apiKey || "";
+  if (!apiKey) {
+    throw new Error("未获取到 API Key，请先登录");
+  }
 
   const { onChunk, onDone, onError } = callbacks;
-  const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-
-  // 构建完整的 API URL
-  let fullApiUrl = API_URL;
-  if (APP_ID && !API_URL.includes(APP_ID)) {
-    fullApiUrl = `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
-  }
+  const fullApiUrl = buildApiUrl();
 
   let fullText = "";
   let isAborted = false;
   let requestTask = null;
+  let sseBuffer = "";
+  const streamDecoder = createUtf8Decoder();
 
   // 构建请求体
   const requestBody = {
@@ -93,6 +203,51 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
   const systemInfo = wx.getSystemInfoSync();
   console.log("[Bailian API] System info:", systemInfo);
 
+  const processParsedSSELine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+
+    const parsed = parseSSELine(trimmed);
+    if (!parsed) return false;
+
+    if (parsed.event === "error" || parsed.code) {
+      const errorMsg = parsed.message || "Server error";
+      onError && onError(new Error(errorMsg));
+      return true;
+    }
+
+    if (parsed.done) return true;
+
+    const chunkText = getParsedChunkText(parsed);
+    if (chunkText) {
+      fullText += chunkText;
+      onChunk && onChunk(chunkText, fullText);
+    }
+
+    return parsed.output?.finish_reason === "stop";
+  };
+
+  const drainSSEBuffer = (text = "", flush = false) => {
+    sseBuffer += text;
+    const lines = sseBuffer.split(/\r?\n/);
+
+    if (flush) {
+      sseBuffer = "";
+    } else {
+      sseBuffer = lines.pop() || "";
+    }
+
+    for (const line of lines) {
+      if (processParsedSSELine(line)) return true;
+    }
+
+    if (flush && sseBuffer.trim()) {
+      return processParsedSSELine(sseBuffer);
+    }
+
+    return false;
+  };
+
   const doRequest = () => {
     try {
       requestTask = wx.request({
@@ -100,7 +255,7 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
         method: "POST",
         header: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           Accept: "text/event-stream",
           "X-DashScope-SSE": "enable",
         },
@@ -120,7 +275,7 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
             // 尝试从 arraybuffer 中读取错误信息
             if (res.data instanceof ArrayBuffer) {
               try {
-                const text = new TextDecoder("utf-8").decode(res.data);
+                const text = decodeArrayBuffer(res.data);
                 const json = JSON.parse(text);
                 errorMsg = json.message || json.error?.message || errorMsg;
               } catch (e) {
@@ -131,6 +286,7 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
             return;
           }
 
+          drainSSEBuffer(streamDecoder.flush(), true);
           onDone && onDone(fullText);
         },
         fail: (err) => {
@@ -156,46 +312,11 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
             return;
           }
 
-          const uint8Array = new Uint8Array(arrayBuffer);
-          const text = new TextDecoder("utf-8").decode(uint8Array);
+          const text = streamDecoder.decode(arrayBuffer);
 
           console.log("[Bailian API] Chunk received:", text);
 
-          // 简单的行处理
-          const lines = text.split("\n");
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-
-            const parsed = parseSSELine(trimmed);
-            if (!parsed) continue;
-
-            if (parsed.event === "error" || parsed.code) {
-              const errorMsg = parsed.message || "服务器错误";
-              onError && onError(new Error(errorMsg));
-              return;
-            }
-
-            if (parsed.done) break;
-
-            let chunkText = "";
-            if (parsed.output?.text) {
-              chunkText = parsed.output.text;
-            } else if (parsed.output?.message?.content) {
-              chunkText = parsed.output.message.content;
-            } else if (parsed.output?.choices?.[0]?.message?.content) {
-              chunkText = parsed.output.choices[0].message.content;
-            }
-
-            if (chunkText) {
-              fullText += chunkText;
-              onChunk && onChunk(chunkText, fullText);
-            }
-
-            if (parsed.output?.finish_reason === "stop") {
-              break;
-            }
-          }
+          drainSSEBuffer(text);
         } catch (err) {
           console.error("[Bailian API] Chunk processing error:", err);
         }
@@ -226,25 +347,26 @@ export const sendMessageStream = (prompt, history = [], callbacks = {}) => {
  * @param {string} assistantContent - AI 回复内容
  * @returns {Promise<string>} 生成的标题
  */
-export const generateSmartTitle = async (userContent, assistantContent) => {
+export const generateSmartTitle = async (
+  userContent,
+  assistantContent,
+  apiKey = "",
+) => {
   if (!userContent) return "新对话";
 
   // 如果内容很短，直接截取
   if (userContent.length < 10) return userContent;
+  if (!apiKey) return generateChatTitle(userContent);
 
   try {
-    const { API_URL, API_KEY, APP_ID } = BAILIAN_CONFIG;
-    let fullApiUrl = API_URL;
-    if (APP_ID && !API_URL.includes(APP_ID)) {
-      fullApiUrl = `${API_URL.replace(/\/$/, "")}/${APP_ID}/completion`;
-    }
+    const fullApiUrl = buildApiUrl();
 
     const res = await Taro.request({
       url: fullApiUrl,
       method: "POST",
       header: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       data: {
         input: {

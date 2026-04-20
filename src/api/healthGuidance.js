@@ -132,7 +132,8 @@ const decodeContentResponse = (data) => {
 
 export const buildHealthGuideFileUrl = (uuid) => {
   const encoded = encodeURIComponent(uuid || "");
-  return `${process.env.TARO_APP_API}/api/mutil_media/download?uuid=${encoded}&bigfile=true`;
+  const base = (process.env.TARO_APP_API || "").replace(/\/+$/, "");
+  return `${base}/api/mutil_media/download?uuid=${encoded}&bigfile=true`;
 };
 
 const createAbortError = () => {
@@ -164,24 +165,6 @@ const normalizeLocalFilePath = (filePath = "") => {
   return String(filePath || "")
     .replace(/^http:\/\/tmp\//, "wxfile://tmp/")
     .replace(/^http:\/\/usr\//, "wxfile://usr/");
-};
-
-const detectVideoCodecSignatures = (bytes) => {
-  if (!bytes || !bytes.length) {
-    return [];
-  }
-  const text = String.fromCharCode(...bytes);
-  const signatures = [
-    "avc1",
-    "avc3",
-    "hvc1",
-    "hev1",
-    "vp09",
-    "av01",
-    "mp4v",
-    "encv",
-  ];
-  return signatures.filter((signature) => text.includes(signature));
 };
 
 export const getHealthGuideFileBufferByUuid = async (uuid, options = {}) => {
@@ -292,187 +275,59 @@ export const getHealthGuideMediaTempFileByUuid = async (uuid, options = {}) => {
   const { signal } = options;
   const token = Taro.getStorageSync("token") || "";
   const url = buildHealthGuideFileUrl(uuid);
-  console.log("[HealthGuidance][media-binary] start uuid/url:", uuid, url);
-  throwIfAborted(signal);
-  let downloadRes = null;
-  try {
-    downloadRes = await new Promise((resolve, reject) => {
-      const onAbort = () => {
-        if (task && typeof task.abort === "function") {
-          task.abort();
-        }
-        reject(createAbortError());
-      };
-      let task = null;
-      if (signal) {
-        signal.addEventListener("abort", onAbort, { once: true });
-      }
-      task = Taro.downloadFile({
-        url,
-        header: {
-          Authorization: token,
-        },
-        success: (res) => {
-          if (signal) {
-            signal.removeEventListener("abort", onAbort);
-          }
-          resolve(res);
-        },
-        fail: (error) => {
-          if (signal) {
-            signal.removeEventListener("abort", onAbort);
-          }
-          reject(error);
-        },
-      });
-    });
-  } catch (error) {
-    console.error("[HealthGuidance][media-binary] downloadFile fail:", error);
-    throw error;
+
+  if (!uuid) {
+    throw new Error("视频 uuid 不能为空");
   }
+
   throwIfAborted(signal);
-  console.log(
-    "[HealthGuidance][media-binary] download result:",
-    downloadRes?.statusCode,
-    downloadRes?.tempFilePath,
-  );
-  if (downloadRes.statusCode !== 200 || !downloadRes.tempFilePath) {
-    console.error(
-      "[HealthGuidance][media-binary] download invalid response:",
-      downloadRes,
-    );
+
+  const downloadRes = await new Promise((resolve, reject) => {
+    const onAbort = () => {
+      if (task && typeof task.abort === "function") {
+        task.abort();
+      }
+      reject(createAbortError());
+    };
+    let task = null;
+
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
+    task = Taro.downloadFile({
+      url,
+      header: {
+        Authorization: token,
+      },
+      success: (res) => {
+        if (signal) {
+          signal.removeEventListener("abort", onAbort);
+        }
+        resolve(res);
+      },
+      fail: (error) => {
+        if (signal) {
+          signal.removeEventListener("abort", onAbort);
+        }
+        reject(error);
+      },
+    });
+  });
+
+  throwIfAborted(signal);
+
+  if (downloadRes?.statusCode !== 200 || !downloadRes?.tempFilePath) {
+    console.error("[HealthGuidance][media-binary] download invalid response:", {
+      uuid,
+      url,
+      statusCode: downloadRes?.statusCode,
+      tempFilePath: downloadRes?.tempFilePath,
+    });
     throw new Error("视频文件下载失败");
   }
-  const fs = Taro.getFileSystemManager();
-  const tempPath = downloadRes.tempFilePath;
-  const candidatePaths = [
-    tempPath,
-    normalizeLocalFilePath(tempPath),
-    tempPath.replace(/^http:\/\/tmp\//, "/tmp/"),
-  ];
-  let fileInfo = null;
-  let fileInfoPath = "";
-  for (const candidatePath of candidatePaths) {
-    try {
-      fileInfo = await new Promise((resolve, reject) => {
-        fs.getFileInfo({
-          filePath: candidatePath,
-          success: resolve,
-          fail: reject,
-        });
-      });
-      fileInfoPath = candidatePath;
-      break;
-    } catch (error) {
-      console.warn(
-        "[HealthGuidance][media-binary] getFileInfo fail:",
-        candidatePath,
-        error,
-      );
-      continue;
-    }
-  }
-  console.log(
-    "[HealthGuidance][media-binary] fileInfo/path:",
-    fileInfo,
-    fileInfoPath,
-  );
-  let fileData = null;
-  let fileReadPath = "";
-  for (const candidatePath of candidatePaths) {
-    try {
-      fileData = await new Promise((resolve, reject) => {
-        fs.readFile({
-          filePath: candidatePath,
-          encoding: "",
-          success: (res) => resolve(res.data),
-          fail: (error) => reject(error),
-        });
-      });
-      fileReadPath = candidatePath;
-      break;
-    } catch (error) {
-      console.warn(
-        "[HealthGuidance][media-binary] readFile fail:",
-        candidatePath,
-        error,
-      );
-      continue;
-    }
-  }
-  if (!fileData) {
-    try {
-      const requestRes = await new Promise((resolve, reject) => {
-        const onAbort = () => {
-          if (task && typeof task.abort === "function") {
-            task.abort();
-          }
-          reject(createAbortError());
-        };
-        let task = null;
-        if (signal) {
-          signal.addEventListener("abort", onAbort, { once: true });
-        }
-        task = Taro.request({
-          url,
-          method: "GET",
-          responseType: "arraybuffer",
-          header: {
-            Authorization: token,
-          },
-          success: (res) => {
-            if (signal) {
-              signal.removeEventListener("abort", onAbort);
-            }
-            resolve(res);
-          },
-          fail: (error) => {
-            if (signal) {
-              signal.removeEventListener("abort", onAbort);
-            }
-            reject(error);
-          },
-        });
-      });
-      if (requestRes?.statusCode === 200) {
-        fileData = requestRes.data;
-        fileReadPath = "request-arraybuffer-fallback";
-      }
-    } catch (error) {
-      console.warn(
-        "[HealthGuidance][media-binary] request fallback fail:",
-        error,
-      );
-    }
-  }
-  const mediaBuffer = normalizeArrayBuffer(fileData);
-  const mediaBytes = mediaBuffer
-    ? new Uint8Array(mediaBuffer)
-    : new Uint8Array();
-  const previewBytes = Array.from(mediaBytes.slice(0, 128));
-  const headerHex = previewBytes
-    .slice(0, 32)
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join(" ");
-  const codecSigns = detectVideoCodecSignatures(
-    mediaBytes.slice(0, Math.min(mediaBytes.length, 8192)),
-  );
-  console.log("[HealthGuidance][media-binary] uuid:", uuid);
-  console.log(
-    "[HealthGuidance][media-binary] statusCode/tempFilePath:",
-    downloadRes.statusCode,
-    downloadRes.tempFilePath,
-  );
-  console.log(
-    "[HealthGuidance][media-binary] byteLength/preview(0-127):",
-    mediaBytes.byteLength,
-    previewBytes,
-  );
-  console.log("[HealthGuidance][media-binary] readSourcePath:", fileReadPath);
-  console.log("[HealthGuidance][media-binary] headerHex(0-31):", headerHex);
-  console.log("[HealthGuidance][media-binary] codecSigns:", codecSigns);
-  console.log("[HealthGuidance][media-binary] playPath:", tempPath);
-  return tempPath;
+
+  return normalizeLocalFilePath(downloadRes.tempFilePath);
 };
 
 export const getHealthGuideTypes = () => {

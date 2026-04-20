@@ -15,6 +15,7 @@ message User {
   optional string is_important = 7;
   optional string avatar = 8;
   optional string permission = 9;
+  optional string x_api_key = 10;
 }
 
 // 用户相关的通用响应
