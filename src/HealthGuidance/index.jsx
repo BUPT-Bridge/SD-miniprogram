@@ -182,7 +182,7 @@ export default function HealthGuidance() {
 
   const handlePreviewFile = (item) => {
     Taro.navigateTo({
-      url: `/HealthGuidance/preview/index?uuid=${encodeURIComponent(item.uuid)}&title=${encodeURIComponent(item.title)}&fileType=${encodeURIComponent(item.fileType)}`,
+      url: `/HealthGuidance/preview/index?uuid=${encodeURIComponent(item.uuid)}&title=${encodeURIComponent(item.title)}&fileType=${encodeURIComponent(item.fileType)}&fileUrl=${encodeURIComponent(item.fileUrl || "")}`,
     });
   };
 
