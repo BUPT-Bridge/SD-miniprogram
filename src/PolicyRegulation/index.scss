@@ -50,7 +50,7 @@
   padding: 4vw;
   background: #fff;
   border-radius: 3vw;
-  margin: -4vh 4vw 0;
+  margin: 0 4vw;
   box-shadow: 0 2px 12px rgb(0 0 0 / 4%);
   position: relative;
   z-index: 1;
@@ -90,6 +90,83 @@
       box-shadow: 0 6px 16px rgb(245 111 111 / 22%);
     }
   }
+}
+
+.guide-entry-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3vw;
+  margin: -4vh 4vw 3vh;
+  padding: 3vh 4vw;
+  border-radius: 4vw;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 96%) 0%, #fff7ef 100%), #fff;
+  box-shadow: 0 10px 24px rgb(245 111 111 / 12%);
+  border: 1px solid #ffe0c2;
+
+  &::before {
+    position: absolute;
+    top: 18px;
+    right: 22px;
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    background: rgb(255 184 108 / 14%);
+    content: "";
+  }
+}
+
+.guide-entry-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.guide-entry-tag {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #fff0df;
+  color: #d85b37;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.guide-entry-title {
+  margin-top: 14px;
+  color: #333;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.guide-entry-desc {
+  margin-top: 10px;
+  color: #76645b;
+  font-size: 24px;
+  line-height: 1.45;
+}
+
+.guide-entry-action {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  padding: 16px 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffb86c 0%, #f56f6f 100%);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .policy-files-list {

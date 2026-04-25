@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+/* global requirePlugin, wx */
+import { useEffect, useRef, useState } from "react";
 import Taro, { useLoad } from "@tarojs/taro";
 import { View, Text, ScrollView, Textarea, RichText } from "@tarojs/components";
 import Button from "@taroify/core/button";
@@ -25,7 +26,124 @@ import {
 import { BAILIAN_CONFIG } from "../config/bailian";
 import "./index.scss";
 
-const WELCOME_MESSAGE = "你好！我是上地街道 AI 助手，有什么可以帮助您的吗？";
+const WELCOME_MESSAGE =
+  "你好！我是上地街道 AI 助手，可以为您提供社区服务、政策咨询和生活指引。";
+const NEW_CHAT_TITLE = "新对话";
+const STREAM_INTERVAL = 30;
+const TTS_CHUNK_MAX_LENGTH = 150;
+const VOICE_RECOGNITION_TIMEOUT = 12000;
+
+const VOICE_STATUS = {
+  IDLE: "idle",
+  RECORDING: "recording",
+  RECOGNIZING: "recognizing",
+};
+
+const TTS_STATUS = {
+  IDLE: "idle",
+  SYNTHESIZING: "synthesizing",
+  PLAYING: "playing",
+  PAUSED: "paused",
+};
+
+const ttsStatusLabelMap = {
+  [TTS_STATUS.IDLE]: "未播放",
+  [TTS_STATUS.SYNTHESIZING]: "语音生成中",
+  [TTS_STATUS.PLAYING]: "正在播放",
+  [TTS_STATUS.PAUSED]: "暂停中",
+};
+
+const voiceDebugLog = (step, data = {}) => {
+  const payload = {
+    step,
+    time: new Date().toISOString(),
+    env: process.env.TARO_ENV,
+    ...data,
+  };
+
+  console.info("[ChatVoice]", payload);
+};
+
+const voiceDebugWarn = (step, data = {}) => {
+  const payload = {
+    step,
+    time: new Date().toISOString(),
+    env: process.env.TARO_ENV,
+    ...data,
+  };
+
+  console.warn("[ChatVoice]", payload);
+};
+
+const getWechatSIPlugin = () => {
+  if (process.env.TARO_ENV !== "weapp") {
+    voiceDebugWarn("plugin.skip.non-weapp");
+    return null;
+  }
+
+  try {
+    const pluginLoader =
+      typeof requirePlugin === "function"
+        ? requirePlugin
+        : typeof wx !== "undefined" && typeof wx.requirePlugin === "function"
+          ? wx.requirePlugin
+          : typeof window !== "undefined" &&
+              typeof window.requirePlugin === "function"
+            ? window.requirePlugin
+            : null;
+    voiceDebugLog("plugin.loader.check", {
+      hasRequirePlugin: typeof requirePlugin === "function",
+      hasWxRequirePlugin:
+        typeof wx !== "undefined" && typeof wx.requirePlugin === "function",
+      hasWindowRequirePlugin:
+        typeof window !== "undefined" &&
+        typeof window.requirePlugin === "function",
+      hasPluginLoader: typeof pluginLoader === "function",
+    });
+
+    if (typeof pluginLoader !== "function") return null;
+
+    const plugin = pluginLoader("WechatSI");
+    voiceDebugLog("plugin.load.result", {
+      hasPlugin: Boolean(plugin),
+      hasRecordManager: Boolean(plugin?.getRecordRecognitionManager),
+      hasTextToSpeech: Boolean(plugin?.textToSpeech),
+    });
+    return plugin;
+  } catch (error) {
+    voiceDebugWarn("plugin.load.error", {
+      errMsg: error?.errMsg,
+      message: error?.message,
+      error,
+    });
+    return null;
+  }
+};
+
+const getRecordRecognitionManager = () => {
+  const plugin = getWechatSIPlugin();
+  const manager = plugin?.getRecordRecognitionManager?.() || null;
+  voiceDebugLog("manager.get.result", {
+    hasPlugin: Boolean(plugin),
+    hasManager: Boolean(manager),
+    managerKeys: manager ? Object.keys(manager) : [],
+  });
+  return manager;
+};
+
+const bindManagerEvent = (manager, eventName, handler) => {
+  if (!manager) return;
+
+  // WechatSI's official sample uses property callbacks:
+  // manager.onStop = function (res) {}
+  // Some docs list them as methods, but assigning is the reliable behavior on
+  // real devices for this plugin.
+  manager[eventName] = handler;
+  voiceDebugLog("manager.event.bound", {
+    eventName,
+    eventTypeAfterBind: typeof manager[eventName],
+  });
+};
 
 const escapeHtml = (text = "") =>
   text
@@ -119,9 +237,66 @@ const renderMarkdownToHtml = (markdown = "") => {
   return blocks.join("");
 };
 
+const normalizeSpeechText = (content = "") =>
+  content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const splitTextForTTS = (text = "", maxLength = TTS_CHUNK_MAX_LENGTH) => {
+  const normalized = normalizeSpeechText(text);
+  if (!normalized) return [];
+
+  const segments = [];
+  let current = "";
+  const punctuation = "，。！？；：,.;!?、\n";
+
+  for (const char of normalized) {
+    current += char;
+
+    if (current.length >= maxLength) {
+      let splitIndex = -1;
+      for (let i = current.length - 1; i >= 0; i -= 1) {
+        if (punctuation.includes(current[i])) {
+          splitIndex = i + 1;
+          break;
+        }
+      }
+
+      if (splitIndex <= 0 || splitIndex < maxLength * 0.45) {
+        splitIndex = maxLength;
+      }
+
+      const chunk = current.slice(0, splitIndex).trim();
+      if (chunk) segments.push(chunk);
+      current = current.slice(splitIndex).trimStart();
+    }
+  }
+
+  if (current.trim()) {
+    segments.push(current.trim());
+  }
+
+  return segments;
+};
+
+const createTTSState = () => ({
+  status: TTS_STATUS.IDLE,
+  audioSources: [],
+  currentIndex: 0,
+});
+
 export default function Chat() {
   const [chatId, setChatId] = useState("");
-  const [chatTitle, setChatTitle] = useState("新对话");
+  const [chatTitle, setChatTitle] = useState(NEW_CHAT_TITLE);
   const [messages, setMessages] = useState([
     { id: "welcome", type: "ai", content: WELCOME_MESSAGE, isWelcome: true },
   ]);
@@ -131,12 +306,28 @@ export default function Chat() {
   const [streamingId, setStreamingId] = useState(null);
   const [fontSize, setFontSize] = useState("normal");
   const [apiKey, setApiKey] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState(VOICE_STATUS.IDLE);
+  const [ttsStateMap, setTtsStateMap] = useState({});
 
   const abortFnRef = useRef(null);
   const textBufferRef = useRef([]);
   const isStreamActiveRef = useRef(false);
   const streamTimerRef = useRef(null);
   const scrollIntoViewId = useRef("");
+  const audioContextRef = useRef(null);
+  const triggerChatRef = useRef(null);
+  const playCurrentSegmentRef = useRef(null);
+  const resetTTSStateRef = useRef(null);
+  const activePlaybackRef = useRef({
+    messageId: "",
+    index: 0,
+    audioSources: [],
+  });
+  const pendingTTSMessageIdRef = useRef("");
+  const recordRecognitionManagerRef = useRef(null);
+  const recognitionTimeoutRef = useRef(null);
+  const speechResultRef = useRef("");
+  const isRecognitionBoundRef = useRef(false);
 
   const quickQuestions = [
     "如何办理居住证？",
@@ -150,12 +341,335 @@ export default function Chat() {
     { label: "中", value: "normal", size: "18px" },
     { label: "大", value: "large", size: "26px" },
   ];
-  const currentFontSize = fontSizeOptions.find((opt) => opt.value === fontSize);
+  const currentFontSize = fontSizeOptions.find(
+    (item) => item.value === fontSize,
+  );
 
-  const initNewChat = useCallback(() => {
+  const patchTTSState = (messageId, patch) => {
+    if (!messageId) return;
+
+    setTtsStateMap((prev) => ({
+      ...prev,
+      [messageId]: {
+        ...(prev[messageId] || createTTSState()),
+        ...patch,
+      },
+    }));
+  };
+
+  const resetTTSState = (messageId) => {
+    if (!messageId) return;
+    patchTTSState(messageId, createTTSState());
+  };
+
+  const getVoiceButtonLabel = () => {
+    if (voiceStatus === VOICE_STATUS.RECORDING) return "结束";
+    if (voiceStatus === VOICE_STATUS.RECOGNIZING) return "识别中";
+    return "语音";
+  };
+
+  const getInputTipText = () => {
+    if (voiceStatus === VOICE_STATUS.RECORDING) {
+      return "正在聆听，点击语音按钮结束录音并自动发送";
+    }
+
+    if (voiceStatus === VOICE_STATUS.RECOGNIZING) {
+      return "正在将语音转换成文字，请稍候";
+    }
+
+    return "AI 助手回答仅供参考，具体政策以官方发布为准。";
+  };
+
+  const clearRecognitionTimeout = () => {
+    if (!recognitionTimeoutRef.current) return;
+    clearTimeout(recognitionTimeoutRef.current);
+    recognitionTimeoutRef.current = null;
+    voiceDebugLog("timeout.clear");
+  };
+
+  const setupRecordRecognitionManager = () => {
+    const recordRecognitionManager =
+      recordRecognitionManagerRef.current || getRecordRecognitionManager();
+    recordRecognitionManagerRef.current = recordRecognitionManager;
+
+    if (!recordRecognitionManager) {
+      voiceDebugWarn("manager.unavailable");
+    }
+
+    if (!recordRecognitionManager || isRecognitionBoundRef.current) {
+      voiceDebugLog("manager.setup.skip", {
+        hasManager: Boolean(recordRecognitionManager),
+        alreadyBound: isRecognitionBoundRef.current,
+      });
+      return recordRecognitionManager;
+    }
+
+    const handleStop = (res) => {
+      voiceDebugLog("event.stop", {
+        duration: res?.duration,
+        fileSize: res?.fileSize,
+        hasResult: Boolean(res?.result),
+        resultLength: res?.result?.length || 0,
+        hasFallbackResult: Boolean(speechResultRef.current),
+        fallbackResultLength: speechResultRef.current.length,
+        msg: res?.msg,
+        retcode: res?.retcode,
+        tempFilePath: res?.tempFilePath,
+      });
+      clearRecognitionTimeout();
+      setVoiceStatus(VOICE_STATUS.IDLE);
+
+      const result = (res?.result || speechResultRef.current || "").trim();
+      speechResultRef.current = "";
+      if (!result) {
+        voiceDebugWarn("event.stop.empty-result", {
+          rawResult: res?.result,
+          duration: res?.duration,
+          fileSize: res?.fileSize,
+        });
+        Taro.showToast({
+          title: "没有识别到有效语音",
+          icon: "none",
+        });
+        return;
+      }
+
+      setInputValue(result);
+      voiceDebugLog("event.stop.send-result", {
+        resultLength: result.length,
+        preview: result.slice(0, 30),
+      });
+      triggerChatRef.current?.(result);
+    };
+
+    const handleError = (res) => {
+      voiceDebugWarn("event.error", {
+        retcode: res?.retcode,
+        msg: res?.msg,
+        errMsg: res?.errMsg,
+        raw: res,
+      });
+      clearRecognitionTimeout();
+      speechResultRef.current = "";
+      setVoiceStatus(VOICE_STATUS.IDLE);
+      Taro.showToast({
+        title: res?.msg || "语音识别失败",
+        icon: "none",
+      });
+    };
+
+    bindManagerEvent(recordRecognitionManager, "onStart", () => {
+      voiceDebugLog("event.start", {
+        statusBefore: voiceStatus,
+      });
+      clearRecognitionTimeout();
+      speechResultRef.current = "";
+      setVoiceStatus(VOICE_STATUS.RECORDING);
+    });
+    bindManagerEvent(recordRecognitionManager, "onStop", handleStop);
+    bindManagerEvent(recordRecognitionManager, "onError", handleError);
+    bindManagerEvent(recordRecognitionManager, "onRecognize", (res) => {
+      const result = res?.result?.trim();
+      if (!result) return;
+      voiceDebugLog("event.recognize.partial", {
+        resultLength: result.length,
+        preview: result.slice(0, 30),
+      });
+      speechResultRef.current = result;
+      setInputValue(result);
+    });
+
+    isRecognitionBoundRef.current = true;
+    voiceDebugLog("manager.setup.done");
+    return recordRecognitionManager;
+  };
+
+  const stopPlayback = (nextStatus = TTS_STATUS.IDLE) => {
+    const currentMessageId = activePlaybackRef.current.messageId;
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.stop();
+      } catch (error) {
+        console.warn("[Chat] 停止音频失败:", error);
+      }
+    }
+
+    if (currentMessageId) {
+      patchTTSState(currentMessageId, {
+        status: nextStatus,
+        currentIndex: 0,
+      });
+    }
+
+    activePlaybackRef.current = {
+      messageId: "",
+      index: 0,
+      audioSources: [],
+    };
+  };
+
+  const playCurrentSegment = (messageId, index) => {
+    const context = audioContextRef.current;
+    const playback = activePlaybackRef.current;
+    const src = playback.audioSources[index];
+
+    if (!context || !src) {
+      stopPlayback(TTS_STATUS.IDLE);
+      return;
+    }
+
+    playback.messageId = messageId;
+    playback.index = index;
+
+    patchTTSState(messageId, {
+      status: TTS_STATUS.PLAYING,
+      currentIndex: index,
+      audioSources: playback.audioSources,
+    });
+
+    context.autoplay = false;
+    context.src = src;
+    context.play();
+  };
+
+  const startPlayback = (messageId, audioSources, startIndex = 0) => {
+    stopPlayback(TTS_STATUS.IDLE);
+    activePlaybackRef.current = {
+      messageId,
+      index: startIndex,
+      audioSources,
+    };
+    playCurrentSegment(messageId, startIndex);
+  };
+
+  playCurrentSegmentRef.current = playCurrentSegment;
+  resetTTSStateRef.current = resetTTSState;
+
+  const requestTextToSpeech = (content) =>
+    new Promise((resolve, reject) => {
+      const wechatSIPlugin = getWechatSIPlugin();
+      if (!wechatSIPlugin?.textToSpeech) {
+        reject(new Error("微信文字转语音插件未就绪"));
+        return;
+      }
+
+      wechatSIPlugin.textToSpeech({
+        lang: "zh_CN",
+        content,
+        success: (res) => {
+          if (res?.retcode === 0 && res.filename) {
+            resolve(res.filename);
+            return;
+          }
+
+          reject(
+            new Error(
+              res?.msg ||
+                (typeof res?.retcode === "number"
+                  ? `语音合成失败(${res.retcode})`
+                  : "语音合成失败"),
+            ),
+          );
+        },
+        fail: (error) => {
+          reject(new Error(error?.msg || error?.errMsg || "语音合成请求失败"));
+        },
+      });
+    });
+
+  const handlePlayAITTS = async (message) => {
+    const messageId = message?.id;
+    if (!messageId) return;
+
+    if (!audioContextRef.current) {
+      Taro.showToast({
+        title: "当前环境不支持语音播放",
+        icon: "none",
+      });
+      return;
+    }
+
+    const currentState = ttsStateMap[messageId] || createTTSState();
+    const isCurrentActive = activePlaybackRef.current.messageId === messageId;
+
+    if (currentState.status === TTS_STATUS.SYNTHESIZING) {
+      return;
+    }
+
+    if (isCurrentActive && currentState.status === TTS_STATUS.PLAYING) {
+      audioContextRef.current.pause();
+      patchTTSState(messageId, { status: TTS_STATUS.PAUSED });
+      return;
+    }
+
+    if (isCurrentActive && currentState.status === TTS_STATUS.PAUSED) {
+      audioContextRef.current.play();
+      patchTTSState(messageId, { status: TTS_STATUS.PLAYING });
+      return;
+    }
+
+    if (currentState.audioSources?.length) {
+      startPlayback(messageId, currentState.audioSources, 0);
+      return;
+    }
+
+    const chunks = splitTextForTTS(message.content);
+    if (!chunks.length) {
+      Taro.showToast({
+        title: "当前消息没有可播放内容",
+        icon: "none",
+      });
+      return;
+    }
+
+    pendingTTSMessageIdRef.current = messageId;
+    patchTTSState(messageId, {
+      status: TTS_STATUS.SYNTHESIZING,
+      currentIndex: 0,
+      audioSources: [],
+    });
+
+    try {
+      const audioSources = [];
+
+      for (const chunk of chunks) {
+        if (pendingTTSMessageIdRef.current !== messageId) {
+          return;
+        }
+
+        const audioUrl = await requestTextToSpeech(chunk);
+        audioSources.push(audioUrl);
+      }
+
+      patchTTSState(messageId, {
+        status: TTS_STATUS.IDLE,
+        currentIndex: 0,
+        audioSources,
+      });
+
+      if (pendingTTSMessageIdRef.current === messageId) {
+        startPlayback(messageId, audioSources, 0);
+      }
+    } catch (error) {
+      resetTTSState(messageId);
+      Taro.showToast({
+        title: error.message || "语音生成失败",
+        icon: "none",
+      });
+    } finally {
+      if (pendingTTSMessageIdRef.current === messageId) {
+        pendingTTSMessageIdRef.current = "";
+      }
+    }
+  };
+
+  const initNewChat = () => {
     const newChatId = generateChatId();
+    stopPlayback(TTS_STATUS.IDLE);
+    pendingTTSMessageIdRef.current = "";
+    setTtsStateMap({});
     setChatId(newChatId);
-    setChatTitle("新对话");
+    setChatTitle(NEW_CHAT_TITLE);
     setMessages([
       {
         id: "welcome",
@@ -164,7 +678,10 @@ export default function Chat() {
         isWelcome: true,
       },
     ]);
-  }, []);
+    setInputValue("");
+    setStreamingText("");
+    setStreamingId(null);
+  };
 
   useLoad(() => {
     const { chatId: urlChatId } =
@@ -174,8 +691,8 @@ export default function Chat() {
       const chatData = getChatById(urlChatId);
       if (chatData) {
         setChatId(urlChatId);
-        setChatTitle(chatData.title);
-        setMessages(chatData.messages);
+        setChatTitle(chatData.title || NEW_CHAT_TITLE);
+        setMessages(chatData.messages?.length ? chatData.messages : []);
       } else {
         initNewChat();
       }
@@ -186,37 +703,126 @@ export default function Chat() {
     if (!BAILIAN_CONFIG.API_URL) {
       Taro.showModal({
         title: "配置提示",
-        content: "百炼 API 配置未填写，请先配置后再使用。",
+        content: "百炼 API URL 未配置，请先完成环境配置。",
         showCancel: false,
       });
     }
+
     const loadApiKey = async () => {
       const token = Taro.getStorageSync("token");
       if (!token) {
         setApiKey("");
         return;
       }
+
       try {
         const res = await getUserInfo();
         const key = res?.user?.xApiKey || res?.user?.x_api_key || "";
-        console.log("[Chat] loadApiKey length:", key ? key.length : 0);
         setApiKey(key);
       } catch (error) {
         console.error("[Chat] 获取用户 API Key 失败:", error);
         setApiKey("");
       }
     };
+
     loadApiKey();
   });
 
+  useEffect(() => {
+    if (!audioContextRef.current && Taro.createInnerAudioContext) {
+      const context = Taro.createInnerAudioContext({
+        useWebAudioImplement: true,
+      });
+      context.obeyMuteSwitch = false;
+      context.onEnded(() => {
+        const { messageId, index, audioSources } = activePlaybackRef.current;
+        if (!messageId || !audioSources.length) return;
+
+        const nextIndex = index + 1;
+        if (nextIndex < audioSources.length) {
+          playCurrentSegmentRef.current?.(messageId, nextIndex);
+          return;
+        }
+
+        resetTTSStateRef.current?.(messageId);
+        activePlaybackRef.current = {
+          messageId: "",
+          index: 0,
+          audioSources: [],
+        };
+      });
+      context.onPause(() => {
+        const { messageId } = activePlaybackRef.current;
+        if (messageId) {
+          patchTTSState(messageId, { status: TTS_STATUS.PAUSED });
+        }
+      });
+      context.onStop(() => {
+        const { messageId } = activePlaybackRef.current;
+        if (messageId) {
+          resetTTSStateRef.current?.(messageId);
+        }
+        activePlaybackRef.current = {
+          messageId: "",
+          index: 0,
+          audioSources: [],
+        };
+      });
+      context.onError((error) => {
+        const { messageId } = activePlaybackRef.current;
+        if (messageId) {
+          resetTTSStateRef.current?.(messageId);
+        }
+        activePlaybackRef.current = {
+          messageId: "",
+          index: 0,
+          audioSources: [],
+        };
+        Taro.showToast({
+          title: error?.errMsg || "语音播放失败",
+          icon: "none",
+        });
+      });
+      audioContextRef.current = context;
+    }
+
+    return () => {
+      pendingTTSMessageIdRef.current = "";
+      if (recognitionTimeoutRef.current) {
+        clearTimeout(recognitionTimeoutRef.current);
+        recognitionTimeoutRef.current = null;
+      }
+
+      if (recordRecognitionManagerRef.current) {
+        try {
+          recordRecognitionManagerRef.current.stop();
+        } catch (error) {
+          console.warn("[Chat] 页面卸载时停止录音失败:", error);
+        }
+      }
+      isRecognitionBoundRef.current = false;
+      recordRecognitionManagerRef.current = null;
+
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.destroy();
+        } catch (error) {
+          console.warn("[Chat] 销毁音频上下文失败:", error);
+        }
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
+
   const resolveApiKey = async () => {
     if (apiKey) return apiKey;
+
     const token = Taro.getStorageSync("token");
     if (!token) return "";
+
     try {
       const res = await getUserInfo();
       const key = res?.user?.xApiKey || res?.user?.x_api_key || "";
-      console.log("[Chat] resolveApiKey length:", key ? key.length : 0);
       setApiKey(key);
       return key;
     } catch (error) {
@@ -225,58 +831,51 @@ export default function Chat() {
     }
   };
 
-  const saveCurrentChat = useCallback(
-    (newMessages, title = null) => {
-      if (!chatId) return;
-      const finalTitle = title || chatTitle;
-      const messagesToSave = newMessages.filter((msg) => !msg.isWelcome);
-      if (messagesToSave.length > 0) {
-        saveChatHistory(chatId, finalTitle, messagesToSave);
-      }
-    },
-    [chatId, chatTitle],
-  );
+  const saveCurrentChat = (newMessages, title = null) => {
+    if (!chatId) return;
+    const finalTitle = title || chatTitle;
+    const messagesToSave = newMessages.filter((item) => !item.isWelcome);
+    if (messagesToSave.length > 0) {
+      saveChatHistory(chatId, finalTitle, messagesToSave);
+    }
+  };
 
   const handleFontSizeChange = () => {
     const currentIndex = fontSizeOptions.findIndex(
-      (opt) => opt.value === fontSize,
+      (item) => item.value === fontSize,
     );
     const nextIndex = (currentIndex + 1) % fontSizeOptions.length;
     setFontSize(fontSizeOptions[nextIndex].value);
     Taro.showToast({
-      title: `字体：${fontSizeOptions[nextIndex].label}`,
+      title: `字体已切换为${fontSizeOptions[nextIndex].label}`,
       icon: "none",
       duration: 1500,
     });
   };
 
   const handleNewChat = () => {
-    console.log(
-      "[Chat] 开始新对话，当前chatId:",
-      chatId,
-      "当前标题:",
-      chatTitle,
-    );
     initNewChat();
     Taro.showToast({
       title: "已创建新对话",
       icon: "success",
       duration: 1500,
     });
-    console.log("[Chat] 新对话已创建");
   };
 
   const handleStopGenerating = () => {
     isStreamActiveRef.current = false;
     textBufferRef.current = [];
+
     if (streamTimerRef.current) {
       clearInterval(streamTimerRef.current);
       streamTimerRef.current = null;
     }
+
     if (abortFnRef.current) {
       abortFnRef.current();
       abortFnRef.current = null;
     }
+
     setIsLoading(false);
     setStreamingId(null);
     setStreamingText("");
@@ -302,13 +901,14 @@ export default function Chat() {
     abortFnRef.current = null;
     isStreamActiveRef.current = false;
     textBufferRef.current = [];
+
     if (streamTimerRef.current) {
       clearInterval(streamTimerRef.current);
       streamTimerRef.current = null;
     }
 
     let currentTitle = chatTitle;
-    if (chatTitle === "新对话" || chatTitle === "New Chat") {
+    if (chatTitle === NEW_CHAT_TITLE || chatTitle === "New Chat") {
       try {
         const smartTitle = await generateSmartTitle(
           userContent,
@@ -323,8 +923,8 @@ export default function Chat() {
             return prev;
           });
         }
-      } catch (e) {
-        console.error("智能标题生成失败", e);
+      } catch (error) {
+        console.error("[Chat] 智能标题生成失败:", error);
       }
     }
 
@@ -335,13 +935,7 @@ export default function Chat() {
         user_message: userContent,
         ai_response: fullText,
       };
-      console.log("[Chat] 保存对话到后端，payload:", {
-        ...payload,
-        ai_response: fullText.substring(0, 50) + "...",
-      });
-
       const res = await saveChatMessage(payload);
-      console.log("[Chat] 后端保存结果:", res);
 
       if (
         res &&
@@ -349,17 +943,17 @@ export default function Chat() {
         res.session_id &&
         res.session_id !== chatId
       ) {
-        console.log("[Chat] 更新chatId:", chatId, "->", res.session_id);
         setChatId(res.session_id);
       }
-    } catch (e) {
-      console.error("[Chat] 对话记录同步后端失败:", e);
+    } catch (error) {
+      console.error("[Chat] 同步对话到后端失败:", error);
     }
   };
 
   const handleStreamError = (error, streamId) => {
     isStreamActiveRef.current = false;
     textBufferRef.current = [];
+
     if (streamTimerRef.current) {
       clearInterval(streamTimerRef.current);
       streamTimerRef.current = null;
@@ -392,6 +986,7 @@ export default function Chat() {
   const handleStreamAbort = (streamId) => {
     isStreamActiveRef.current = false;
     textBufferRef.current = [];
+
     if (streamTimerRef.current) {
       clearInterval(streamTimerRef.current);
       streamTimerRef.current = null;
@@ -401,7 +996,7 @@ export default function Chat() {
       const partialMessage = {
         id: streamId,
         type: "ai",
-        content: streamingText || "（已停止生成）",
+        content: streamingText || "已停止生成",
       };
       setMessages((prev) => {
         const newMessages = [...prev, partialMessage];
@@ -417,7 +1012,7 @@ export default function Chat() {
   };
 
   const triggerChat = async (content) => {
-    if (isLoading) return;
+    if (!content?.trim() || isLoading) return;
 
     if (!BAILIAN_CONFIG.API_URL) {
       Taro.showToast({
@@ -438,7 +1033,12 @@ export default function Chat() {
       return;
     }
 
-    const userMessage = { id: Date.now().toString(), type: "user", content };
+    const userMessage = {
+      id: Date.now().toString(),
+      type: "user",
+      content,
+    };
+
     setMessages((prev) => {
       const newMessages = [...prev, userMessage];
       saveCurrentChat(newMessages);
@@ -448,7 +1048,7 @@ export default function Chat() {
     setInputValue("");
     setIsLoading(true);
 
-    const streamId = (Date.now() + 1).toString();
+    const streamId = `${Date.now() + 1}`;
     setStreamingId(streamId);
     setStreamingText("");
 
@@ -456,54 +1056,38 @@ export default function Chat() {
     isStreamActiveRef.current = true;
     let currentDisplayedText = "";
 
-    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    if (streamTimerRef.current) {
+      clearInterval(streamTimerRef.current);
+    }
+
     streamTimerRef.current = setInterval(() => {
       if (textBufferRef.current.length > 0) {
-        const bufferLen = textBufferRef.current.length;
+        const bufferLength = textBufferRef.current.length;
         let takeCount = 2;
-        if (bufferLen > 50) takeCount = 5;
-        else if (bufferLen > 20) takeCount = 3;
+        if (bufferLength > 50) takeCount = 5;
+        else if (bufferLength > 20) takeCount = 3;
 
         const chunk = textBufferRef.current.splice(0, takeCount).join("");
         currentDisplayedText += chunk;
         setStreamingText(currentDisplayedText);
-      } else if (
-        !isStreamActiveRef.current &&
-        currentDisplayedText.length > 0
-      ) {
+        return;
+      }
+
+      if (!isStreamActiveRef.current && currentDisplayedText.length > 0) {
         if (streamTimerRef.current) {
           clearInterval(streamTimerRef.current);
           streamTimerRef.current = null;
         }
         finishStream(currentDisplayedText, streamId, content, runtimeApiKey);
-      } else if (
-        !isStreamActiveRef.current &&
-        currentDisplayedText.length === 0
-      ) {
-        if (streamTimerRef.current) {
-          clearInterval(streamTimerRef.current);
-          streamTimerRef.current = null;
-        }
       }
-    }, 30);
+    }, STREAM_INTERVAL);
 
     const history = messages
-      .filter((msg) => !msg.isWelcome && msg.type !== "error")
-      .map((msg) => ({
-        role: msg.type === "user" ? "user" : "assistant",
-        content: msg.content,
+      .filter((item) => !item.isWelcome && item.type !== "error")
+      .map((item) => ({
+        role: item.type === "user" ? "user" : "assistant",
+        content: item.content,
       }));
-
-    console.log(
-      "[Chat] 发送消息时的chatId:",
-      chatId,
-      "是否历史会话:",
-      chatId.startsWith("session_"),
-    );
-    console.log("[Chat] 作为上下文的历史消息数:", history.length);
-    if (history.length > 0) {
-      console.log("[Chat] 历史消息最后一条:", history[history.length - 1]);
-    }
 
     abortFnRef.current = sendMessageStream(
       content,
@@ -522,6 +1106,8 @@ export default function Chat() {
     );
   };
 
+  triggerChatRef.current = triggerChat;
+
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
     triggerChat(inputValue.trim());
@@ -535,23 +1121,182 @@ export default function Chat() {
     setInputValue(e.detail.value);
   };
 
-  const handleOpenHistory = async () => {
-    console.log("[Chat] ====== 点击历史记录按钮 ======");
-    console.log("[Chat] 当前chatId:", chatId, "当前标题:", chatTitle);
+  const ensureRecordPermission = async () => {
+    try {
+      voiceDebugLog("permission.get-setting.request");
+      const setting = await Taro.getSetting();
+      voiceDebugLog("permission.get-setting.result", {
+        record: setting.authSetting?.["scope.record"],
+        authSetting: setting.authSetting,
+      });
+      if (setting.authSetting?.["scope.record"]) {
+        return true;
+      }
 
-    // 检查登录状态
+      voiceDebugLog("permission.authorize.request");
+      await Taro.authorize({ scope: "scope.record" });
+      voiceDebugLog("permission.authorize.success");
+      return true;
+    } catch (error) {
+      voiceDebugWarn("permission.authorize.fail", {
+        errMsg: error?.errMsg,
+        message: error?.message,
+        error,
+      });
+      const modal = await Taro.showModal({
+        title: "需要麦克风权限",
+        content: "开启麦克风权限后，才能使用语音输入。",
+        confirmText: "去设置",
+      });
+
+      voiceDebugLog("permission.modal.result", {
+        confirm: modal.confirm,
+        cancel: modal.cancel,
+      });
+
+      if (modal.confirm) {
+        voiceDebugLog("permission.open-setting.request");
+        await Taro.openSetting();
+      }
+
+      return false;
+    }
+  };
+
+  const handleVoiceInput = async () => {
+    voiceDebugLog("button.tap", {
+      voiceStatus,
+      isLoading,
+      hasCachedManager: Boolean(recordRecognitionManagerRef.current),
+      hasFallbackResult: Boolean(speechResultRef.current),
+      inputLength: inputValue.length,
+    });
+
+    if (voiceStatus === VOICE_STATUS.RECOGNIZING || isLoading) {
+      voiceDebugLog("button.tap.ignored", {
+        voiceStatus,
+        isLoading,
+      });
+      return;
+    }
+
+    const recordRecognitionManager = setupRecordRecognitionManager();
+
+    if (!recordRecognitionManager) {
+      voiceDebugWarn("button.no-manager");
+      Taro.showToast({
+        title: "当前环境未接入语音转文字插件",
+        icon: "none",
+      });
+      return;
+    }
+
+    if (voiceStatus === VOICE_STATUS.RECORDING) {
+      setVoiceStatus(VOICE_STATUS.RECOGNIZING);
+      clearRecognitionTimeout();
+      voiceDebugLog("timeout.arm", {
+        timeoutMs: VOICE_RECOGNITION_TIMEOUT,
+        fallbackResultLength: speechResultRef.current.length,
+      });
+      recognitionTimeoutRef.current = setTimeout(() => {
+        const fallbackResult = speechResultRef.current.trim();
+        voiceDebugWarn("timeout.fire", {
+          fallbackResultLength: fallbackResult.length,
+          hasFallbackResult: Boolean(fallbackResult),
+        });
+        setVoiceStatus(VOICE_STATUS.IDLE);
+        speechResultRef.current = "";
+
+        if (fallbackResult) {
+          setInputValue(fallbackResult);
+          voiceDebugLog("timeout.send-fallback", {
+            resultLength: fallbackResult.length,
+            preview: fallbackResult.slice(0, 30),
+          });
+          triggerChatRef.current?.(fallbackResult);
+          return;
+        }
+
+        Taro.showToast({
+          title: "语音识别超时，请重试",
+          icon: "none",
+        });
+      }, VOICE_RECOGNITION_TIMEOUT);
+
+      try {
+        voiceDebugLog("manager.stop.request");
+        recordRecognitionManager.stop();
+        voiceDebugLog("manager.stop.called");
+      } catch (error) {
+        voiceDebugWarn("manager.stop.throw", {
+          errMsg: error?.errMsg,
+          message: error?.message,
+          error,
+        });
+        clearRecognitionTimeout();
+        setVoiceStatus(VOICE_STATUS.IDLE);
+        Taro.showToast({
+          title: error?.errMsg || "结束录音失败",
+          icon: "none",
+        });
+      }
+      return;
+    }
+
+    const runtimeApiKey = await resolveApiKey();
+    voiceDebugLog("api-key.resolve.result", {
+      hasApiKey: Boolean(runtimeApiKey),
+      apiKeyLength: runtimeApiKey?.length || 0,
+    });
+    if (!runtimeApiKey) {
+      Taro.showToast({
+        title: "请先登录后再使用语音输入",
+        icon: "none",
+      });
+      return;
+    }
+
+    const hasPermission = await ensureRecordPermission();
+    voiceDebugLog("permission.final", {
+      hasPermission,
+    });
+    if (!hasPermission) return;
+
+    try {
+      clearRecognitionTimeout();
+      speechResultRef.current = "";
+      setVoiceStatus(VOICE_STATUS.RECORDING);
+      const startOptions = {
+        duration: 30000,
+        lang: "zh_CN",
+      };
+      voiceDebugLog("manager.start.request", startOptions);
+      recordRecognitionManager.start(startOptions);
+      voiceDebugLog("manager.start.called");
+    } catch (error) {
+      voiceDebugWarn("manager.start.throw", {
+        errMsg: error?.errMsg,
+        message: error?.message,
+        error,
+      });
+      setVoiceStatus(VOICE_STATUS.IDLE);
+      Taro.showToast({
+        title: error?.errMsg || "启动录音失败",
+        icon: "none",
+      });
+    }
+  };
+
+  const handleOpenHistory = async () => {
     const token = Taro.getStorageSync("token");
     if (!token) {
-      console.warn("[Chat] 用户未登录，无法获取历史记录");
       Taro.showToast({ title: "请先登录", icon: "none" });
       return;
     }
 
     try {
-      console.log("[Chat] 开始获取历史会话列表...");
       Taro.showLoading({ title: "加载历史中..." });
       const res = await getChatSessions(1, 20);
-      console.log("[Chat] 获取历史会话列表成功:", res);
       Taro.hideLoading();
 
       if (!res || res.code !== 200) {
@@ -565,71 +1310,45 @@ export default function Chat() {
         return;
       }
 
-      const itemList = sessions.map((s) => s.title || "未命名对话");
-      console.log(
-        "[Chat] 历史会话列表:",
-        sessions.map((s) => ({ id: s.session_id, title: s.title })),
-      );
-
+      const itemList = sessions.map((item) => item.title || "未命名对话");
       const pick = await Taro.showActionSheet({ itemList });
       const selected = sessions[pick.tapIndex];
-      console.log("[Chat] 用户选择历史记录:", selected);
-      console.log("[Chat] selected.sessionId:", selected?.sessionId);
-
-      // Protobuf 解码后是驼峰命名 sessionId
       const selectedSessionId = selected?.sessionId || selected?.session_id;
-      if (!selectedSessionId) {
-        console.warn("[Chat] 选中的历史记录没有 session_id");
-        return;
-      }
+      if (!selectedSessionId) return;
 
       Taro.showLoading({ title: "加载对话中..." });
-      console.log("[Chat] 开始获取对话详情, sessionId:", selectedSessionId);
       const detail = await getChatSessionDetail(selectedSessionId);
-      console.log("[Chat] 获取对话详情成功:", detail);
       Taro.hideLoading();
 
       if (!detail || detail.code !== 200) {
         Taro.showToast({
-          title: detail?.message || "获取详情失败",
+          title: detail?.message || "获取历史详情失败",
           icon: "none",
         });
         return;
       }
 
-      // Protobuf 解码后的字段是驼峰命名
       const loadedMessages = (detail.messages || [])
-        .map((msg) => [
+        .map((item) => [
           {
-            id: `usr_${msg.id}`,
+            id: `usr_${item.id}`,
             type: "user",
-            content: msg.userMessage || msg.user_message,
+            content: item.userMessage || item.user_message,
           },
           {
-            id: `ai_${msg.id}`,
+            id: `ai_${item.id}`,
             type: "ai",
-            content: msg.aiResponse || msg.ai_response,
+            content: item.aiResponse || item.ai_response,
           },
         ])
         .flat();
 
-      console.log("[Chat] 加载的历史消息数:", loadedMessages.length);
-      console.log(
-        "[Chat] 加载的消息详情:",
-        loadedMessages.map((m) => ({
-          type: m.type,
-          content: m.content?.substring(0, 30),
-        })),
-      );
+      stopPlayback(TTS_STATUS.IDLE);
+      pendingTTSMessageIdRef.current = "";
+      setTtsStateMap({});
 
-      // Protobuf 解码后是驼峰命名
-      const newChatId =
-        detail.sessionId || detail.session_id || selectedSessionId;
-      const newTitle = detail.title || selected.title || "历史对话";
-      console.log("[Chat] 解析后的新chatId:", newChatId, "新标题:", newTitle);
-
-      setChatId(newChatId);
-      setChatTitle(newTitle);
+      setChatId(detail.sessionId || detail.session_id || selectedSessionId);
+      setChatTitle(detail.title || selected.title || "历史对话");
       setMessages(
         loadedMessages.length
           ? loadedMessages
@@ -642,32 +1361,21 @@ export default function Chat() {
               },
             ],
       );
-
-      console.log(
-        "[Chat] 历史对话加载完成，chatId:",
-        newChatId,
-        "标题:",
-        newTitle,
-      );
     } catch (error) {
       Taro.hideLoading();
-      console.error("[Chat] ====== 获取历史记录出错 ======");
-      console.error("[Chat] 错误详情:", error);
-
       if (error?.errMsg && /cancel/i.test(error.errMsg)) {
-        console.log("[Chat] 用户取消了选择");
         return;
       }
 
+      console.error("[Chat] 获取历史记录失败:", error);
       Taro.showToast({ title: "历史记录加载失败", icon: "none" });
     }
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      scrollIntoViewId.current = `msg-${lastMessage.id}`;
-    }
+    if (!messages.length) return;
+    const lastMessage = messages[messages.length - 1];
+    scrollIntoViewId.current = `msg-${lastMessage.id}`;
   }, [messages, streamingText]);
 
   return (
@@ -678,7 +1386,7 @@ export default function Chat() {
           <View className="toolbar-title-wrapper">
             <Text className="toolbar-title">{chatTitle}</Text>
             <Text className="toolbar-subtitle">
-              {messages.filter((m) => m.type === "user").length} 条对话 ▾
+              {messages.filter((item) => item.type === "user").length} 条对话
             </Text>
           </View>
         </View>
@@ -703,75 +1411,95 @@ export default function Chat() {
         showScrollbar={false}
       >
         <View className="messages-wrapper">
-          {messages.map((msg) => (
-            <View key={msg.id} id={`msg-${msg.id}`}>
-              {msg.isWelcome ? (
-                <View className="welcome-container">
-                  <View className="ai-avatar">
-                    <SmileOutlined className="avatar-icon" />
-                  </View>
-                  <View className="welcome-content">
-                    <View className="message-bubble ai-message">
-                      <Text
-                        className="message-text"
-                        style={{ fontSize: currentFontSize?.size }}
-                      >
-                        {msg.content}
-                      </Text>
+          {messages.map((msg) => {
+            const ttsState = ttsStateMap[msg.id] || createTTSState();
+            const ttsStatusLabel = ttsStatusLabelMap[ttsState.status];
+
+            return (
+              <View key={msg.id} id={`msg-${msg.id}`}>
+                {msg.isWelcome ? (
+                  <View className="welcome-container">
+                    <View className="ai-avatar">
+                      <SmileOutlined className="avatar-icon" />
                     </View>
-                    <View className="quick-questions">
-                      <Text className="quick-title">您可以问我：</Text>
-                      <View className="quick-tags">
-                        {quickQuestions.map((question) => (
-                          <View
-                            key={question}
-                            className="quick-tag"
-                            onClick={() => handleQuickQuestion(question)}
-                          >
-                            <Text className="quick-tag-text">{question}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <View
-                  className={`message-row ${msg.type === "user" ? "user-row" : "ai-row"}`}
-                >
-                  {msg.type === "ai" ? (
-                    <>
-                      <View className="ai-avatar small">
-                        <SmileOutlined className="avatar-icon" />
-                      </View>
+                    <View className="welcome-content">
                       <View className="message-bubble ai-message">
-                        <View className={`message-markdown font-${fontSize}`}>
-                          <RichText
-                            nodes={renderMarkdownToHtml(msg.content || "")}
-                          />
-                        </View>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View className="message-bubble user-message">
                         <Text
                           className="message-text"
                           style={{ fontSize: currentFontSize?.size }}
-                          selectable
                         >
                           {msg.content}
                         </Text>
                       </View>
-                      <View className="user-avatar small">
-                        <UserOutlined className="avatar-icon" />
+                      <View className="quick-questions">
+                        <Text className="quick-title">您可以这样问我</Text>
+                        <View className="quick-tags">
+                          {quickQuestions.map((question) => (
+                            <View
+                              key={question}
+                              className="quick-tag"
+                              onClick={() => handleQuickQuestion(question)}
+                            >
+                              <Text className="quick-tag-text">{question}</Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          ))}
+                    </View>
+                  </View>
+                ) : (
+                  <View
+                    className={`message-row ${msg.type === "user" ? "user-row" : "ai-row"}`}
+                  >
+                    {msg.type === "ai" ? (
+                      <>
+                        <View className="ai-avatar small">
+                          <SmileOutlined className="avatar-icon" />
+                        </View>
+                        <View className="ai-message-group">
+                          <View className="message-bubble ai-message">
+                            <View
+                              className={`message-markdown font-${fontSize}`}
+                            >
+                              <RichText
+                                nodes={renderMarkdownToHtml(msg.content || "")}
+                              />
+                            </View>
+                          </View>
+                          <View className="ai-message-meta">
+                            <View
+                              className={`tts-action-btn status-${ttsState.status}`}
+                              onClick={() => handlePlayAITTS(msg)}
+                            />
+                            <Text
+                              className={`tts-status-tag status-${ttsState.status}`}
+                            >
+                              {ttsStatusLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View className="message-bubble user-message">
+                          <Text
+                            className="message-text"
+                            style={{ fontSize: currentFontSize?.size }}
+                            selectable
+                          >
+                            {msg.content}
+                          </Text>
+                        </View>
+                        <View className="user-avatar small">
+                          <UserOutlined className="avatar-icon" />
+                        </View>
+                      </>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
 
           {streamingId && (
             <View
@@ -781,14 +1509,16 @@ export default function Chat() {
               <View className="ai-avatar small">
                 <SmileOutlined className="avatar-icon" />
               </View>
-              <View className="message-bubble ai-message streaming-message">
-                <Text
-                  className="message-text"
-                  style={{ fontSize: currentFontSize?.size }}
-                >
-                  {streamingText}
-                  <Text className="streaming-cursor">|</Text>
-                </Text>
+              <View className="ai-message-group">
+                <View className="message-bubble ai-message streaming-message">
+                  <Text
+                    className="message-text"
+                    style={{ fontSize: currentFontSize?.size }}
+                  >
+                    {streamingText}
+                    <Text className="streaming-cursor">|</Text>
+                  </Text>
+                </View>
               </View>
             </View>
           )}
@@ -814,6 +1544,16 @@ export default function Chat() {
 
       <View className="chat-input-area">
         <View className="input-wrapper">
+          <View
+            className={`voice-button voice-${voiceStatus} ${isLoading ? "disabled" : ""}`}
+            onClick={handleVoiceInput}
+          >
+            <View className="voice-button-core">
+              <View className="voice-button-icon" />
+            </View>
+            <Text className="voice-button-text">{getVoiceButtonLabel()}</Text>
+          </View>
+
           <Textarea
             className="text-input"
             value={inputValue}
@@ -822,10 +1562,11 @@ export default function Chat() {
             placeholderClass="input-placeholder"
             maxlength={500}
             autoHeight
-            disabled={isLoading}
+            disabled={isLoading || voiceStatus === VOICE_STATUS.RECORDING}
             confirmType="send"
             onConfirm={handleSendMessage}
           />
+
           {isLoading ? (
             <Button
               className="send-button stop-button"
@@ -843,10 +1584,9 @@ export default function Chat() {
             </Button>
           )}
         </View>
+
         <View className="input-tip">
-          <Text className="tip-text">
-            AI 助手回答仅供参考，具体政策以官方发布为准。
-          </Text>
+          <Text className="tip-text">{getInputTipText()}</Text>
         </View>
       </View>
 

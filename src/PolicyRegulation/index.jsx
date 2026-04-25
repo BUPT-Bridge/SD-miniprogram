@@ -70,6 +70,19 @@ export default function PolicyRegulation() {
     });
   };
 
+  const openElderlyServiceGuide = () => {
+    Taro.navigateTo({
+      url: "/PolicyRegulation/guide/index",
+      fail: (err) => {
+        console.error("[PolicyRegulation] guide navigate failed:", err);
+        Taro.showToast({
+          title: "页面跳转失败",
+          icon: "none",
+        });
+      },
+    });
+  };
+
   return (
     <View className="policy-regulation-page">
       <View className="custom-header">
@@ -81,6 +94,19 @@ export default function PolicyRegulation() {
         <View className="header-content">
           <Text className="title">政策法规</Text>
           <Text className="subtitle">了解最新的政策和规定</Text>
+        </View>
+      </View>
+
+      <View className="guide-entry-card" onClick={openElderlyServiceGuide}>
+        <View className="guide-entry-content">
+          <Text className="guide-entry-tag">补贴条件指引</Text>
+          <Text className="guide-entry-title">养老服务办事指南</Text>
+          <Text className="guide-entry-desc">
+            按服务类型查看办理条件、补贴标准和流程
+          </Text>
+        </View>
+        <View className="guide-entry-action">
+          <Text>进入</Text>
         </View>
       </View>
 

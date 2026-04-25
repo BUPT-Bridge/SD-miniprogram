@@ -1,4 +1,15 @@
 export default defineAppConfig({
+  plugins: {
+    WechatSI: {
+      version: "0.3.6",
+      provider: "wx069ba97219f66d99",
+    },
+  },
+  permission: {
+    "scope.record": {
+      desc: "用于语音输入，将语音转成文字后发送给 AI 助手",
+    },
+  },
   pages: [
     "pages/index/index",
     "Chat/chat/index",
@@ -19,7 +30,13 @@ export default defineAppConfig({
   subPackages: [
     {
       root: "PolicyRegulation",
-      pages: ["index"],
+      pages: [
+        "index",
+        "guide/index",
+        "guide/detail",
+        "guide/content",
+        "guide/placeholder",
+      ],
     },
   ],
   preloadRule: {
